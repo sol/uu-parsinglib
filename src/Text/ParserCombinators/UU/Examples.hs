@@ -11,13 +11,14 @@ module Text.ParserCombinators.UU.Examples where
 import Char
 import Text.ParserCombinators.UU.Parsing
 
-type P b =  P_m (Str Char) b -> String -> (b, [Error Char Char Int]) 
+type Pars a = P_m (Str Char) a
+type P b =  Pars b -> String -> (b, [Error Char Char Int]) 
 test :: P b
 test p inp = parse ( (,) <$> p <*> pEnd) (listToStr inp)
 
 lift a = [a]
 
-pa, pb, paz :: P_m (Str  Char) [Char] 
+pa, pb, paz ::Pars [Char] 
 pa = lift <$> pSym 'a'
 pb = lift <$> pSym 'b'
 p <++> q = (++) <$> p <*> q
@@ -44,6 +45,7 @@ main = do print (test pa "a")
           print (test paz "ab1z7")
           print (test paz' "m")
           print (test paz' "")
+          print (test parseBoth "(123;456;789)")
 
 
 
@@ -66,6 +68,16 @@ pVarId  = (:) <$> pLower <*> pList pIdChar
 pConId  = (:) <$> pUpper <*> pList pIdChar
 pIdChar = pLower <|> pUpper <|> pDigit <|> pAnySym "='"
 
+-- parsing two alternatives and returning both rsults
+pAscii = pSym ('\000', '\254')
+pIntList       ::Pars [Int] 
+pIntList       =  pParens ((pSym ';') `pListSep` (read <$> pList (pSym ('0', '9'))))
+parseIntString :: Pars String
+parseIntString = pList (pAscii)
+
+parseBoth = pPair pIntList parseIntString
+
+pPair p q =  amb (Left <$> p <|> Right <$> q)
 
 -- running the parser; if complete input accepted return the result else fail with reporting unconsumed tokens
 run :: forall t. P_m (Str Char) t -> String -> t

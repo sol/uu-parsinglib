@@ -39,9 +39,11 @@ Description:         New version of the Utrecht University parser combinator lib
 Category:            Text.ParserCombinators Parsing Text
 
 Library
-     Build-Depends:     base > 2 && <= 4, haskell98
-     Exposed-modules:   Text.ParserCombinators.UU.Parsing 
-                        Text.ParserCombinators.UU.Core  
-                        Text.ParserCombinators.UU.BasicInstances
-                        Text.ParserCombinators.UU.Derived 
-                        Text.ParserCombinators.UU.Examples
+  hs-source-dirs:       src
+
+  Build-Depends:     base > 2 && <= 4, haskell98
+  Exposed-modules:   Text.ParserCombinators.UU.Parsing 
+                     Text.ParserCombinators.UU.Core  
+                     Text.ParserCombinators.UU.BasicInstances
+                     Text.ParserCombinators.UU.Derived 
+                     Text.ParserCombinators.UU.Examples

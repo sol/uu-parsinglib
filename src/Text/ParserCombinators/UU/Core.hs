@@ -39,7 +39,7 @@ class  Symbol p  symbol token | symbol -> token where
 type Strings = [String]
 
 type Cost = Int
-type Progress = Int
+type Progress = Int#
 
 class  Provides state symbol token | state symbol -> token  where
        splitState   ::  symbol -> (token -> state  -> Steps a) -> state -> Steps a
@@ -56,18 +56,18 @@ class  Parse p  where
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 data  Steps   a  where
-      Step   ::              Progress       ->  Steps a                                -> Steps   a
-      Fail   ::              [String]       ->  [[String]  ->       (Int, Steps   a)]  -> Steps   a
+      Step   ::              Progress      ->  Steps a                                 -> Steps   a
+      Fail   ::              [String]       ->  [[String]  ->      (Int#, Steps   a)]  -> Steps   a
       Apply  ::  forall b.   (b -> a)       ->  Steps   b                              -> Steps   a
       End_h  ::              ([a] , [a] -> Steps r)        ->  Steps   (a,r)           -> Steps   (a, r)
       End_f  ::              [Steps   a]   ->  Steps   a                               -> Steps   a
 
-failAlways  =  Fail [] [const ((0, failAlways))]
+failAlways  =  Fail [] [const ((0#, failAlways))]
 noAlts      =  Fail [] []
 
 eval :: Steps   a      ->  a
 eval (Step  _    l)     =   eval l
-eval (Fail   ss  ls  )  =   eval (getCheapest 3 [f ss | f <- ls]) 
+eval (Fail   ss  ls  )  =   eval (getCheapest 3# [f ss | f <- ls]) 
 eval (Apply  f   l   )  =   f (eval l)
 eval (End_f   _  _   )  =   error "dangling End_fconstructor"
 eval (End_h   _  _   )  =   error "dangling End_h constructor"
@@ -105,6 +105,32 @@ End_h  (as, k_h_st)  l  `best'`  End_h  (bs, _) r     =   End_h (as++bs, k_h_st)
 End_h  as  l            `best'`  r               =   End_h as (l `best` r)
 l                       `best'`  End_h  bs r     =   End_h bs (l `best` r)
 l                       `best'`  r               =   l `best` r 
+
+-- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+-- %%%%%%%%%%%%% getCheapest  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+-- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+--| The function 
+getCheapest :: Int# -> [(Int, Steps a)] -> Steps a 
+getCheapest _ [] = error "no correcting alternative found"
+getCheapest n l  =  snd $  foldr (\(w,ll) btf@(c, l)
+                               ->    if w < c 
+                                     then let new = (traverse n ll w c) 
+                                          in if new < c then (new, ll) else btf
+                                     else btf 
+                               )   (maxBound, error "getCheapest") l
+
+
+traverse :: Int# -> Steps a -> Int# -> Int# -> Int#
+traverse 0# _               =  \ v c ->  v
+traverse n (Step _  l)      =  traverse (n -# 1#) l
+traverse n (Apply _ l)      =  traverse n         l
+traverse n (Fail m m2ls)    =  \ v c ->  foldr (\ (w,l) c' -> if v + w < c' then traverse (n -# 1#) l (v+w) c'
+                                                                            else c'
+                                               ) c (map ($m) m2ls)
+traverse n (End_h ((a, lf))    r)  =  traverse n (lf a `best` removeEnd_h r)
+traverse n (End_f (l      :_)  r)  =  traverse n (l `best` r)   
+
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%% History     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -267,30 +293,6 @@ map' f ~(x:xs)              =   f x : map f xs
 instance (Ambiguous (P_h state), Ambiguous (P_f state)) => Ambiguous (P_m state) where
   amb  (P_m (hp, fp))  = P_m (amb hp, amb fp)
        
--- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--- %%%%%%%%%%%%% getCheapest  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-getCheapest :: Int -> [(Int, Steps a)] -> Steps a 
-getCheapest _ [] = error "no correcting alternative found"
-getCheapest n l  =  snd $  foldr (\(w,ll) btf@(c, l)
-                               ->    if w < c 
-                                     then let new = (traverse n ll w c) 
-                                          in if new < c then (new, ll) else btf
-                                     else btf 
-                               )   (maxBound, error "getCheapest") l
-
-
-traverse :: Int -> Steps a -> Int -> Int -> Int
-traverse 0 _                =  \ v c ->  v
-traverse n (Step ps l)      =  traverse (n-1) l
-traverse n (Apply _ l)      =  traverse n     l
-traverse n (Fail m m2ls)    =  \ v c ->  foldr (\ (w,l) c' -> if v + w < c' then traverse (n-1) l (v+w) c'
-                                                                            else c'
-                                               ) c (map ($m) m2ls)
-traverse n (End_h ((a, lf))    r)  =  traverse n (lf a `best` removeEnd_h r)
-traverse n (End_f (l      :_)  r)  =  traverse n (l `best` r)   
-
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%% pErrors     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
