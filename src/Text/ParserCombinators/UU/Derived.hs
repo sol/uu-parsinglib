@@ -2,6 +2,11 @@ module Text.ParserCombinators.UU.Derived where
 
 import Text.ParserCombinators.UU.Core
 
+
+
+pReturn  = pure
+pFail    = empty
+
 infixl 4  <??>
 infixl 2 `opt`
 
