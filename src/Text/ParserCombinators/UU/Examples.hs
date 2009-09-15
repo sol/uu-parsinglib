@@ -11,10 +11,9 @@ module Text.ParserCombinators.UU.Examples where
 import Char
 import Text.ParserCombinators.UU.Parsing
 
-type Pars a = P_m (Str Char) a
-type P b =  Pars b -> String -> (b, [Error Char Char Int]) 
-test :: P b
-test p inp = parse ( (,) <$> p <*> pEnd) (listToStr inp)
+type Pars a = P (Str Char) a 
+test :: Pars a -> String -> (a, [Error Char Char Int]) 
+test p inp = parse_f ( (,) <$> p <*> pEnd) (listToStr inp)
 
 lift a = [a]
 
@@ -31,7 +30,7 @@ pExact n p = (:) <$> p <*> pExact (n-1) p
 
 paz = pList (pSym ('a', 'z'))
 
-paz' = pSym (\t -> 'a' <= t && t <= 'z', "a .. z", 'k')
+paz' = pSym (\t -> 'a' <= t && t <= 'z', "'a' .. 'z'", 'k')
 
 main :: IO ()
 main = do print (test pa "a")
@@ -80,16 +79,16 @@ parseBoth = pPair pIntList parseIntString
 pPair p q =  amb (Left <$> p <|> Right <$> q)
 
 -- running the parser; if complete input accepted return the result else fail with reporting unconsumed tokens
-run :: forall t. P_m (Str Char) t -> String -> t
+run :: forall t. P (Str Char) t -> String -> t
 run p i = do let (a,b) = exec p i
              if null b then a else error (show b)
 
-exec :: P_m (Str Char) b -> String -> (b, [Error Char Char Int])
-exec p inp = parse ( (,) <$> p <*> pEnd) (listToStr inp)
+exec :: P (Str Char) b -> String -> (b, [Error Char Char Int])
+exec p inp = parse_f ( (,) <$> p <*> pEnd) (listToStr inp)
 
 
 -- Testing
-pTest_MS :: P_m (Str Char) Char
+pTest_MS :: P (Str Char) Char
 pTest_MS = id <$ pSym 'u' <*> pSym '2'
 
 pOp (c, op) = op <$ pSym c
