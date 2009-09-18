@@ -39,7 +39,7 @@ Description:         New version of the Utrecht University parser combinator lib
 Category:            Text.ParserCombinators Parsing Text
 
 Library
-  hs-source-dirs:       src
+  hs-source-dirs:    src
 
   Build-Depends:     base > 2 && <= 4, haskell98
   Exposed-modules:   Text.ParserCombinators.UU.Parsing 

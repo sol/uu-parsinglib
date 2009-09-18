@@ -30,7 +30,7 @@ pExact n p = (:) <$> p <*> pExact (n-1) p
 
 paz = pList (pSym ('a', 'z'))
 
-paz' = pSym (\t -> 'a' <= t && t <= 'z', "'a' .. 'z'", 'k')
+paz' = pSym (\t -> 'a' <= t && t <= 'z', "'a'..'z'", 'k')
 
 main :: IO ()
 main = do print (test pa "a")

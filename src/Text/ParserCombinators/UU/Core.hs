@@ -99,7 +99,7 @@ data  Steps   a  where
       End_h  ::              ([a] , [a] -> Steps r)        ->  Steps   (a,r)           -> Steps   (a, r)
       End_f  ::              [Steps   a]   ->  Steps   a                               -> Steps   a
 
-failAlways  =  Fail [] [const ((0, failAlways))]
+failAlways  =  Fail [] [const (0, failAlways)]
 noAlts      =  Fail [] []
 
 eval :: Steps   a      ->  a
@@ -182,7 +182,7 @@ unP (P p) = p
 
 instance   Functor (P  state) where 
   fmap f      (P   (ph, pf ,pr))  =  P  ( \  k -> ph ( k .f )
-                                        , \k inp ->  Apply (\(a,r) -> (f a, r)) (pf k inp) -- pure f <*> pf
+                                        , \  k inp ->  Apply (\(a,r) -> (f a, r)) (pf k inp) -- pure f <*> pf
                                         , pr
                                         ) 
 
@@ -214,8 +214,8 @@ instance  ( Provides state symbol token) => Symbol (P  state) symbol token where
 
 data Id a = Id a deriving Show
 
-parse_h (P (ph, pf, pr)) = fst . eval . ph  (\ a rest -> if eof rest then push a failAlways else error "pEnd missing?") 
-parse_f (P (ph, pf, pr)) = fst . eval . pf  (\ rest   -> if eof rest then failAlways        else error "pEnd missing?")
+-- parse_h (P (ph, pf, pr)) = fst . eval . ph  (\ a rest -> if eof rest then push a failAlways else error "pEnd missing?") 
+parse (P (ph, pf, pr)) = fst . eval . pf  (\ rest   -> if eof rest then failAlways        else error "pEnd missing?")
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%% Monads      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -293,7 +293,7 @@ pErrors = P ( \ k inp -> let (errs, inp') = getErrors inp in k    errs    inp'
 pEnd    = P ( \ k inp -> let deleterest inp =  case deleteAtEnd inp of
                                                   Nothing -> let (finalerrors, finalstate) = getErrors inp
                                                              in k  finalerrors finalstate
-                                                  Just (i, inp') -> Fail []  [const ((i,  deleterest inp'))]
+                                                  Just (i, inp') -> Fail []  [const (i,  deleterest inp')]
                         in deleterest inp
             , \ k   inp -> let deleterest inp =  case deleteAtEnd inp of
                                                     Nothing -> let (finalerrors, finalstate) = getErrors inp
@@ -303,7 +303,7 @@ pEnd    = P ( \ k inp -> let deleterest inp =  case deleteAtEnd inp of
             , \ k   inp -> let deleterest inp =  case deleteAtEnd inp of
                                                     Nothing -> let (finalerrors, finalstate) = getErrors inp
                                                                in  (k finalstate)
-                                                    Just (i, inp') -> Fail [] [const ((i, deleterest inp'))]
+                                                    Just (i, inp') -> Fail [] [const (i, deleterest inp')]
                            in deleterest inp
              )
 
@@ -344,6 +344,6 @@ pSwitch split (P (ph, pf, pr))   = P (\ k st1 ->  let (st2, back) = split st1
 instance ExtApplicative (P st)  where
   P (ph, pf, pr) <*  P ~(_ , _ , qr)   = P ( ph. (qr.),  pf. qr  ,  pr . qr    ) 
   P (_ , _ , pr) *>  P ~(qh, qf, qr)   = P ( pr . qh  ,  pr. qf  ,  pr . qr    )
-  f     <$  P (_, _, qr)               = P ( qr . ($f) ,  \ k st -> push f (qr k st), qr )
+  f              <$  P ~(_, _, qr)     = P ( qr . ($f) ,  \ k st -> push f (qr k st), qr )
 
 type Strings = [String]
