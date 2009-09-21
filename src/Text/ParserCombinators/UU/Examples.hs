@@ -13,7 +13,7 @@ import Text.ParserCombinators.UU.Parsing
 
 type Pars a = P (Str Char) a 
 test :: Pars a -> String -> (a, [Error Char Char Int]) 
-test p inp = parse_f ( (,) <$> p <*> pEnd) (listToStr inp)
+test p inp = parse ( (,) <$> p <*> pEnd) (listToStr inp)
 
 lift a = [a]
 
@@ -84,7 +84,7 @@ run p i = do let (a,b) = exec p i
              if null b then a else error (show b)
 
 exec :: P (Str Char) b -> String -> (b, [Error Char Char Int])
-exec p inp = parse_f ( (,) <$> p <*> pEnd) (listToStr inp)
+exec p inp = parse ( (,) <$> p <*> pEnd) (listToStr inp)
 
 
 -- Testing

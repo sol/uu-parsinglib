@@ -68,11 +68,6 @@ class Eof state where
        eof          ::  state   -> Bool
        deleteAtEnd  ::  state   -> Maybe (Cost, state)
 
--- ** `Parse'
-
-class  Parse p  where
-       parse  ::   Eof state => p state a -> state -> a
-
 -- * Progress Information
 -- | The data type `Steps` is the core data type around which the parsers are constructed. It is a stream containing both the result of the parsing process,
 --   albeit often in a fragmented way, and progress information. Recognising a token should correspond to a certain amount of `Progress`, 
