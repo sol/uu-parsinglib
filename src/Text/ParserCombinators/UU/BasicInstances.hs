@@ -19,9 +19,15 @@ data Error t s pos = Inserted s pos Strings
                    | DeletedAtEnd t
 
 instance (Show t, Show s, Show pos) => Show (Error t s pos) where 
- show (Inserted s pos expecting) = "\nInserted " ++ show s ++ " at position " ++ show pos ++ " expecting one of " ++ show expecting 
- show (Deleted  t pos expecting) = "\nDeleted  " ++ show t ++ " at position " ++ show pos ++ " expecting one of " ++ show expecting 
+ show (Inserted s pos expecting) = "\nInserted " ++ show s ++ " at position " ++ show pos ++  show_expecting  expecting 
+ show (Deleted  t pos expecting) = "\nDeleted  " ++ show t ++ " at position " ++ show pos ++  show_expecting  expecting 
  show (DeletedAtEnd t)           = "\nThe token " ++ show t ++ "was not consumed by the parsing process." 
+
+
+show_expecting [a]    = " expecting " ++ a
+show_expecting (a:as) = " expecting one of [" ++ a ++ concat (map (", " ++) as) ++ "]"
+show_expecting []     = " expecting nothing"
+
 data Str     t    = Str   {  input    :: [t]
                           ,  msgs     :: [Error t t Int ]
                           ,  pos      :: !Int
@@ -30,7 +36,7 @@ data Str     t    = Str   {  input    :: [t]
 listToStr ls = Str   ls  []  0  True
 
 instance (Show a) => Provides  (Str  a)  (a -> Bool, String, a)  a where
-       splitState (p, msg, a) k (Str  tts   msgs pos  ok) 
+       splitState (p, msg, a) k (Str  tts   msgs pos  del_ok) 
           = let ins exp =       (5, k a (Str tts (msgs ++ [Inserted a  pos  exp]) pos  False))
                 del exp =       (5, splitState (p,msg, a) 
                                     k
@@ -38,7 +44,7 @@ instance (Show a) => Provides  (Str  a)  (a -> Bool, String, a)  a where
             in case tts of
                (t:ts)  ->  if p t 
                            then  Step 1 (k t (Str ts msgs (pos + 1) True))
-                           else  Fail [msg] (ins: if ok then [del] else [])
+                           else  Fail [msg] (ins: if del_ok then [del] else [])
                []      ->  Fail [msg] [ins]
 
 instance (Ord a, Show a) => Provides  (Str  a)  (a,a)  a where

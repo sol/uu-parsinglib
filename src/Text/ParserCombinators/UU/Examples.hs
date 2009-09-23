@@ -11,13 +11,13 @@ module Text.ParserCombinators.UU.Examples where
 import Char
 import Text.ParserCombinators.UU.Parsing
 
-type P b =  P_m (Str Char) b -> String -> (b, [Error Char Char Int]) 
-test :: P b
+type Pars a = P (Str Char) a 
+test :: Pars a -> String -> (a, [Error Char Char Int]) 
 test p inp = parse ( (,) <$> p <*> pEnd) (listToStr inp)
 
 lift a = [a]
 
-pa, pb, paz :: P_m (Str  Char) [Char] 
+pa, pb, paz ::Pars [Char] 
 pa = lift <$> pSym 'a'
 pb = lift <$> pSym 'b'
 p <++> q = (++) <$> p <*> q
@@ -30,7 +30,7 @@ pExact n p = (:) <$> p <*> pExact (n-1) p
 
 paz = pList (pSym ('a', 'z'))
 
-paz' = pSym (\t -> 'a' <= t && t <= 'z', "a .. z", 'k')
+paz' = pSym (\t -> 'a' <= t && t <= 'z', "'a'..'z'", 'k')
 
 main :: IO ()
 main = do print (test pa "a")
@@ -44,13 +44,14 @@ main = do print (test pa "a")
           print (test paz "ab1z7")
           print (test paz' "m")
           print (test paz' "")
+          print (test parseBoth "(123;456;789)")
 
 
 
 -- bracketing expressions
-pParens p = id <$ pSym '(' <*> p <* pSym ')'
-pBracks p = id <$ pSym '[' <*> p <* pSym ']'
-pCurlys p = id <$ pSym '{' <*> p <* pSym '}'
+pParens p =  pSym '(' *> p <* pSym ')'
+pBracks p =  pSym '[' *> p <* pSym ']'
+pCurlys p =  pSym '{' *> p <* pSym '}'
 
 -- parsing numbers
 pDigit = pSym ('0', '9')
@@ -66,18 +67,28 @@ pVarId  = (:) <$> pLower <*> pList pIdChar
 pConId  = (:) <$> pUpper <*> pList pIdChar
 pIdChar = pLower <|> pUpper <|> pDigit <|> pAnySym "='"
 
+-- parsing two alternatives and returning both rsults
+pAscii = pSym ('\000', '\254')
+pIntList       ::Pars [Int] 
+pIntList       =  pParens ((pSym ';') `pListSep` (read <$> pList (pSym ('0', '9'))))
+parseIntString :: Pars String
+parseIntString = pList (pAscii)
+
+parseBoth = pPair pIntList parseIntString
+
+pPair p q =  amb (Left <$> p <|> Right <$> q)
 
 -- running the parser; if complete input accepted return the result else fail with reporting unconsumed tokens
-run :: forall t. P_m (Str Char) t -> String -> t
+run :: forall t. P (Str Char) t -> String -> t
 run p i = do let (a,b) = exec p i
              if null b then a else error (show b)
 
-exec :: P_m (Str Char) b -> String -> (b, [Error Char Char Int])
+exec :: P (Str Char) b -> String -> (b, [Error Char Char Int])
 exec p inp = parse ( (,) <$> p <*> pEnd) (listToStr inp)
 
 
 -- Testing
-pTest_MS :: P_m (Str Char) Char
+pTest_MS :: P (Str Char) Char
 pTest_MS = id <$ pSym 'u' <*> pSym '2'
 
 pOp (c, op) = op <$ pSym c
