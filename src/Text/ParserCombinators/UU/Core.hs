@@ -52,7 +52,10 @@ class  ExtApplicative p where
 -- tokens actually constructed from the  input. This happens e.g. if we want to recognise an integer or an identifier: we are also interested in which integer occurred in the input, or which identifier. Note that if the alternative later fails repair will take place, instead of trying the other altrenatives at the greedy choice point.
 
 class  Symbol p  symbol token | p symbol -> token where
-  pSym  ::  symbol -> p token
+  pSym  ::  symbol            -> p token
+  pSymExp :: symbol -> String -> p token
+  
+
 -- ^ The function `pSym` takes as argument a value of some type `symbol', and returns a value of type `token'. The parser will in general depend on some 
 -- state which is maintained holding the input. The functional dependency fixes the `token` type, based on the `symbol` type and the type of the parser `p`.
 -- Since `pSym' is overloaded both the type and the value of symbol determine how to decompose the input in a `token` and the remaining input.
@@ -60,7 +63,7 @@ class  Symbol p  symbol token | p symbol -> token where
 -- ** `Provides'
 
 class  Provides state symbol token | state symbol -> token  where
-       splitState   ::  symbol -> (token -> state  -> Steps a) -> state -> Steps a
+       splitState   ::  symbol -> String -> (token -> state  -> Steps a) -> state -> Steps a
 
 -- ** `Eof'
 
@@ -172,61 +175,113 @@ traverse n (End_f (l      :_)  r)  =  traverse n (l `best` r)
 newtype  P   st  a =  P  ( forall r . (a  -> st -> Steps r)  -> st -> Steps r          -- history parser
                          , forall r . (      st -> Steps r)  -> st -> Steps   (a, r)   -- future parser
                          , forall r . (      st -> Steps r)  -> st -> Steps r          -- recogniser
+                         , Strings
+                         , Maybe a
                          ) 
 unP (P p) = p
 
 instance   Functor (P  state) where 
-  fmap f      (P   (ph, pf ,pr))  =  P  ( \  k -> ph ( k .f )
-                                        , \  k inp ->  Apply (\(a,r) -> (f a, r)) (pf k inp) -- pure f <*> pf
-                                        , pr
-                                        ) 
+  fmap f      (P   (ph, pf ,pr, exp, ma))  
+     =  P  ( \  k -> ph ( k .f )
+           , \  k inp ->  Apply (\(a,r) -> (f a, r)) (pf k inp) -- pure f <*> pf
+           , pr
+           , exp
+           , fmap f ma
+           ) 
 
 instance   Applicative (P  state) where
-  P (ph, pf, pr) <*> P ~(qh, qf, qr)  =  P  ( \  k -> ph (\ pr -> qh (\ qr -> k (pr qr)))
-                                            , (apply .) . (pf .qf)
-                                            , pr . qr
-                                            )  
-  pure a                              =  P  ( ($a)
-                                            , ((push a).)
-                                            , id
-                                            )
+  P (ph, pf, pr, expp, mp) <*> P ~(qh, qf, qr, expq, mq)  
+      =  P  ( \  k -> ph (\ pr -> qh (\ qr -> k (pr qr)))
+            , (apply .) . (pf .qf)
+            , pr . qr
+            , coreCombineExps mp expp expq
+            , do f <- mp
+                 a <- mq
+                 return (f a)
+            )  
+  pure a                             
+      =  P  ( ($a)
+            , ((push a).)
+            , id
+            , []
+            , Just a
+            )
 
 instance   Alternative (P   state) where 
-  P (ph, pf, pr)  <|> P (qh, qf, qr)  =  P ( \  k inp  -> ph k inp `best` qh k inp
-                                           , \  k inp  -> pf k inp `best` qf k inp
-                                           , \  k inp  -> pr k inp `best` qr k inp
-                                           ) 
-  empty                =  P  ( \  k inp  ->  noAlts
-                             , \ k inp  -> noAlts
-                             , \  k inp  -> noAlts
-                             ) 
+ p <|> q = coreChoose p q best
+ empty   = coreEmpty
+  
+coreCombineExps  mp expp expq = case mp of {Nothing -> expp; Just _ -> expp++expq}
 
-instance  ( Provides state symbol token) => Symbol (P  state) symbol token where
-  pSym a =  P ( \ k inp -> splitState a k inp
-              , \ k inp -> splitState a (\ t inp' -> push t (k inp')) inp
-              , \ k inp -> splitState a (\ v inp' -> k inp') inp
-              )
+coreChoose :: P st a -> P st a -> (forall r. Steps r -> Steps r -> Steps r) -> P st a
+coreChoose (P (ph, pf, pr, expp, mp)) (P (qh, qf, qr, expq, mq)) best 
+     =  P ( \  k inp  -> ph k inp `best` qh k inp
+          , \  k inp  -> pf k inp `best` qf k inp
+          , \  k inp  -> pr k inp `best` qr k inp
+          , expp++expq
+          , case (mp, mq) of
+             (Nothing, _)        -> mq
+             (_      , Nothing ) -> mp
+             _                   -> error ("choice between two possibly empty alteratives,\none expecting: " ++ show expp 
+                                                                ++ "\nand the other expecting: " ++ show expq)
+          )
+
+coreEmpty  =  P  ( \  k inp  ->  noAlts
+                 , \  k inp  -> noAlts
+                 , \  k inp  -> noAlts
+                 , []
+                 , Nothing
+                 ) 
+
+instance  ( Provides state symbol token, Show symbol ) => Symbol (P  state) symbol token where
+  pSym a 
+   = let exp = show a in
+      P ( \ k inp -> splitState a exp k inp
+        , \ k inp -> splitState a exp (\ t inp' -> push t (k inp')) inp
+        , \ k inp -> splitState a exp (\ v inp' -> k inp') inp
+        , [exp]
+        , Nothing
+        )
+
+  pSymExp a exp 
+    =  P ( \ k inp -> splitState a exp k inp
+         , \ k inp -> splitState a exp (\ t inp' -> push t (k inp')) inp
+         , \ k inp -> splitState a exp (\ v inp' -> k inp') inp
+         , [exp]
+         , Nothing
+         )
+
 
 data Id a = Id a deriving Show
 
 -- parse_h (P (ph, pf, pr)) = fst . eval . ph  (\ a rest -> if eof rest then push a failAlways else error "pEnd missing?") 
-parse (P (ph, pf, pr)) = fst . eval . pf  (\ rest   -> if eof rest then failAlways        else error "pEnd missing?")
+parse (P (_, pf, _, _, _)) = fst . eval . pf  (\ rest   -> if eof rest then failAlways        else error "pEnd missing?")
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%% Monads      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-unParser_h (P  ( h ,  _ , _  ))  =  h
-unParser_f (P  ( _ ,  f , _  ))  =  f
-unParser_r (P  ( _ ,  _ , r  ))  =  r
+unParser_h (P  ( h ,  _ , _, _, _))  =  h
+unParser_f (P  ( _ ,  f , _, _, _))  =  f
+unParser_r (P  ( _ ,  _ , r, _, _))  =  r
           
 
 instance  Monad (P st) where
-       P ( ph, pf, pr)  >>=  a2q = 
-                P  (  \k -> ph (\ a -> unParser_h (a2q a) k)
-                   ,  \k -> ph (\ a -> unParser_f (a2q a) k)
-                   ,  \k -> ph (\ a -> unParser_r (a2q a) k)
-                   )
+       P ( ph, pf, pr, expp, mp)  >>=  a2q 
+         = case mp of
+           Nothing ->    P(  \k -> ph (\ a -> unParser_h (a2q a) k)
+                          ,  \k -> ph (\ a -> unParser_f (a2q a) k)
+                          ,  \k -> ph (\ a -> unParser_r (a2q a) k)
+                          ,  expp
+                          , Nothing
+                          )
+           Just a  -> let P (_, _, _, expq, mq) =  (a2q a)
+                      in P(  \k -> ph (\ a -> unParser_h (a2q a) k)
+                          ,  \k -> ph (\ a -> unParser_f (a2q a) k)
+                          ,  \k -> ph (\ a -> unParser_r (a2q a) k)
+                          ,  expp ++ expq
+                          ,  mq
+                          )                     
        return  = pure 
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -238,19 +293,20 @@ best_gr :: Steps a -> Steps a -> Steps a
 l@  (Step _ _)   `best_gr` _  = l
 l                `best_gr` r  = l `best` r
 
-P (ph, pf, pr) <<|> P (qh, qf, qr)  = P ( \ k st  -> norm (ph k st) `best_gr` norm (qh k st)
-                                        , \ k st  -> norm (pf k st) `best_gr` norm (qf k st) 
-                                        , \ k st  -> norm (pr k st) `best_gr` norm (qr k st)
-                                        )
+p <<|> q  = coreChoose p q best_gr
+
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%% Ambiguous   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 amb :: P st a -> P st [a]
 
-amb (P (ph, pf, pr)) = P ( \k     ->  removeEnd_h . ph (\ a st' -> End_h ([a], \ as -> k as st') noAlts)
-                         , \k inp ->  combinevalues . removeEnd_f $ pf (\st -> End_f [k st] noAlts) inp
-                         , \k     ->  removeEnd_h . pr (\ st' -> End_h ([undefined], \ _ -> k  st') noAlts)
-                         )
+amb (P (ph, pf, pr, pexp, mp)) 
+  = P ( \k     ->  removeEnd_h . ph (\ a st' -> End_h ([a], \ as -> k as st') noAlts)
+      , \k inp ->  combinevalues . removeEnd_f $ pf (\st -> End_f [k st] noAlts) inp
+      , \k     ->  removeEnd_h . pr (\ st' -> End_h ([undefined], \ _ -> k  st') noAlts)
+      , pexp
+      , fmap (:[]) mp
+      )
 
 removeEnd_h     :: Steps (a, r) -> Steps r
 removeEnd_h (Fail  m ls             )  =   Fail m (applyFail removeEnd_h ls)
@@ -283,6 +339,8 @@ pEnd    :: (Stores st errors, Eof st) => P st errors
 pErrors = P ( \ k inp -> let (errs, inp') = getErrors inp in k    errs    inp'
             , \ k inp -> let (errs, inp') = getErrors inp in push errs (k inp')
             , \ k inp -> let (errs, inp') = getErrors inp in            k inp'
+            , ["pErrors"]
+            , Nothing
             )
 
 pEnd    = P ( \ k inp -> let deleterest inp =  case deleteAtEnd inp of
@@ -300,7 +358,9 @@ pEnd    = P ( \ k inp -> let deleterest inp =  case deleteAtEnd inp of
                                                                in  (k finalstate)
                                                     Just (i, inp') -> Fail [] [const (i, deleterest inp')]
                            in deleterest inp
-             )
+            , ["pEnd"]
+            , Nothing
+            )
 
 {-
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -328,17 +388,22 @@ instance  Micro (P_f  st) where
 pSwitch :: (st1 -> (st2, st2 -> st1)) -> P st2 a -> P st1 a
 
 
-pSwitch split (P (ph, pf, pr))   = P (\ k st1 ->  let (st2, back) = split st1
-                                                  in ph (\ a st2' -> k a (back st2')) st2
-                                     ,\ k st1 ->  let (st2, back) = split st1
-                                                  in pf (\st2' -> k (back st2')) st2
-                                     ,\ k st1 ->  let (st2, back) = split st1
-                                                  in pr (\st2' -> k (back st2')) st2
-                                     )
+pSwitch split (P (ph, pf, pr, expp, pm))  
+      = P (\ k st1 ->  let (st2, back) = split st1  in ph (\ a st2' -> k a (back st2')) st2
+          ,\ k st1 ->  let (st2, back) = split st1  in pf (\st2' -> k (back st2')) st2
+          ,\ k st1 ->  let (st2, back) = split st1  in pr (\st2' -> k (back st2')) st2
+          , expp
+          , pm
+          )
 
 instance ExtApplicative (P st)  where
-  P (ph, pf, pr) <*  P ~(_ , _ , qr)   = P ( ph. (qr.),  pf. qr  ,  pr . qr    ) 
-  P (_ , _ , pr) *>  P ~(qh, qf, qr)   = P ( pr . qh  ,  pr. qf  ,  pr . qr    )
-  f              <$  P ~(_, _, qr)     = P ( qr . ($f) ,  \ k st -> push f (qr k st), qr )
+  P (ph, pf, pr, expp, mp) <*  P ~(_ , _ , qr, expq, mq)   = P ( ph. (qr.),  pf. qr  ,  pr . qr, coreCombineExps mp expp expq, do {a <- mp; _ <- mq; return a}) 
+  P (_ , _ , pr, expp, mp) *>  P ~(qh, qf, qr, expq, mq)   = P ( pr . qh  ,  pr. qf  ,  pr . qr, coreCombineExps mp expp expq, do {_ <- mp; b <- mq; return b})
+  f              <$  P ~(_, _, qr, expp, mp)               = P ( qr . ($f) 
+                                                               , \ k st -> push f (qr k st)
+                                                               , qr 
+                                                               , expp
+                                                               , fmap (const f) mp
+                                                               )
 
 type Strings = [String]
