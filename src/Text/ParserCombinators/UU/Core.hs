@@ -73,7 +73,7 @@ class Eof state where
 --   albeit often in a fragmented way, and progress information. Recognising a token should correspond to a certain amount of `Progress`, 
 --   which for the time being in an `Int`.
 --
---   [@`Step`@] A token was succesfully recognised, and as a result the input was 'advanced' by `Progress`
+--   [@`Step`@] A token was succesfully recognised, and as a result the input was 'advanced' by the distance  `Progress`
 --
 --   [@`Apply`@] The type of value represented by the `Steps` changes by applying the function parameter.
 --

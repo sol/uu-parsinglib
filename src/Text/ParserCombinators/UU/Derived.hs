@@ -29,6 +29,8 @@ p `opt` v       =  p <<|> pure v
 
 pMaybe :: P st a -> P st (Maybe a)
 pMaybe p = Just <$> p `opt` Nothing 
+
+pEither p q = Left <$> p <|> Right <$> q
                                                 
 (<$$>)    ::  (a -> b -> c) -> P st b -> P st (a -> c)
 f <$$> p  =  flip f <$> p
@@ -111,7 +113,7 @@ pChainl_ng op x    = f <$> x <*> pList_ng (flip <$> op <*> x)
 -- | Parses using any of the parsers in the list 'l'.
 
 pAny :: (a -> P st a1) -> [a] -> P st a1
-pAny  f l =  foldr (<|>) empty (map f l)
+pAny  f l =  foldr (<|>) pFail (map f l)
 
 -- | Parses any of the symbols in 'l'.
 pAnySym :: Provides st s s => [s] -> P st s

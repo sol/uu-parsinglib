@@ -49,9 +49,9 @@ main = do print (test pa "a")
 
 
 -- bracketing expressions
-pParens p = id <$ pSym '(' <*> p <* pSym ')'
-pBracks p = id <$ pSym '[' <*> p <* pSym ']'
-pCurlys p = id <$ pSym '{' <*> p <* pSym '}'
+pParens p =  pSym '(' *> p <* pSym ')'
+pBracks p =  pSym '[' *> p <* pSym ']'
+pCurlys p =  pSym '{' *> p <* pSym '}'
 
 -- parsing numbers
 pDigit = pSym ('0', '9')
