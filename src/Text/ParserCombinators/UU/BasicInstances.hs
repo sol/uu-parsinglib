@@ -35,8 +35,8 @@ data Str     t    = Str   {  input    :: [t]
 
 listToStr ls = Str   ls  []  0  True
 
-instance (Show a) => Provides  (Str  a)  (a -> Bool, String, a)  a where
-       splitState (p, msg, a) k (Str  tts   msgs pos  del_ok) 
+instance  Provides  (Str  a)  (a -> Bool, a)  a where
+       splitState ((p, a), msg) k (Str  tts   msgs pos  del_ok) 
           = let ins exp =       (5, k a (Str tts (msgs ++ [Inserted a  pos  exp]) pos  False))
                 del exp =       (5, splitState (p,msg, a) 
                                     k
@@ -44,14 +44,9 @@ instance (Show a) => Provides  (Str  a)  (a -> Bool, String, a)  a where
             in case tts of
                (t:ts)  ->  if p t 
                            then  Step 1 (k t (Str ts msgs (pos + 1) True))
-                           else  Fail [msg] (ins: if del_ok then [del] else [])
-               []      ->  Fail [msg] [ins]
+                           else  Fail (ins: if del_ok then [del] else [])
+               []      ->  Fail  [ins]
 
-instance (Ord a, Show a) => Provides  (Str  a)  (a,a)  a where
-       splitState a@(low, high) = splitState (\ t -> low <= t && t <= high, show low ++ ".." ++ show high, low)
-
-instance (Eq a, Show a) => Provides  (Str  a)  a  a where
-       splitState a  = splitState ((==a), show a, a) 
 
 instance Eof (Str a) where
        eof (Str  i        _    _    _    )                = null i

@@ -17,6 +17,8 @@ pFail    = empty
 infixl 4  <??>
 infixl 2 `opt`
 
+
+
 -- | Optionally recognize parser 'p'.
 -- 
 -- If 'p' can be recognized, the return value of 'p' is used. Otherwise,
@@ -116,13 +118,13 @@ pAny :: (a -> P st a1) -> [a] -> P st a1
 pAny  f l =  foldr (<|>) pFail (map f l)
 
 -- | Parses any of the symbols in 'l'.
-pAnySym :: Provides st s s => [s] -> P st s
+pAnySym :: (Provides st s s, Show s) => [s] -> P st s
 pAnySym = pAny pSym 
 
-pToken :: Provides st s s => [s] -> P st [s]
+pToken :: (Provides st s s, Show s) => [s] -> P st [s]
 pToken []     = pure []
 pToken (a:as) = (:) <$> pSym a <*> pToken as
 
-pAnyToken ::  Provides st s s => [[s]] -> P st [s]
+pAnyToken ::  (Provides st s s, Show s) => [[s]] -> P st [s]
 pAnyToken = pAny pToken
 

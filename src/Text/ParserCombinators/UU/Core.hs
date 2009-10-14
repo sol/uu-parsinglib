@@ -56,25 +56,6 @@ class  Applicative p => ExtApplicative p where
   p *> q    = (\ _ qr -> qr) <$> p <*> q
   f <$ p    = pure (const f) <*> p
 
--- ** `Symbol'
--- | Many parsing libraries do not make a distinction between the terminal symbols of the language recognised and the 
--- tokens actually constructed from the  input. This happens e.g. if we want to recognise an integer or an identifier: we are also interested in which integer occurred in the input, or which identifier. Note that if the alternative later fails repair will take place, instead of trying the other altrenatives at the greedy choice point.
-
-class  Show symbol => Symbol p  symbol token | p symbol -> token where
-  pSym    ::  symbol             -> p token
-  pSymExp ::  symbol -> String   -> p token
-  pSym  a = pSymExp a (show a)
-  
-
--- ^ The function `pSym` takes as argument a value of some type `symbol', and returns a value of type `token'. The parser will in general depend on some 
--- state which is maintained holding the input. The functional dependency fixes the `token` type, based on the `symbol` type and the type of the parser `p`.
--- Since `pSym' is overloaded both the type and the value of symbol determine how to decompose the input in a `token` and the remaining input.
-
--- ** `Provides'
-
-class  Provides state symbol token | state symbol -> token  where
-       splitState   ::  symbol ->  (token -> state  -> Steps a) -> state -> Steps a
-
 -- ** `Eof'
 
 class Eof state where
@@ -142,7 +123,7 @@ instance ExtApplicative (Triple st) where
               (Pf (\ k st -> pr (qf k) st))
               (Pr (\ k st -> pr (qr k) st))
    a <$   ~(Triple (Ph qh) (Pf qf) (Pr qr))  
-     = Triple (Ph (\ k st -> qr (\ st -> k a st)st ))
+     = Triple (Ph (\ k st -> qr (\ st -> k a st) st ))
               (Pf (\ k st -> push a ( qr k st)))
               (Pr qr)
 
@@ -181,9 +162,7 @@ instance Functor (Descr  state) where
 -- it does not make much sense to make Descriptors an instance of Applicative
 -- since we need the parser tupled with the right-hand side operand
 
----------------------------------------------------------------------------------
--- Descriptors ------------------------------------------------------------------
----------------------------------------------------------------------------------
+
 -- Parsers consist of a descriptor and the parser constructed from this descriptor
 
 newtype P st a = P ( Triple st a, Descr st a)
@@ -300,65 +279,53 @@ instance   Alternative (P st) where
               )      )
   empty = mkParser (Descr ([], [], Nothing, None, None))
 
-instance  ( Provides state symbol token, Show symbol ) => Symbol (P  state) symbol token where
-  pSymExp a exp
-   = mkParser (Descr ( [Triple ( Ph (\ k inp -> splitState a  k inp))
-                               ( Pf (\ k inp -> splitState a  (\ t inp' -> push t (k inp')) inp))
-                               ( Pr (\ k inp -> splitState a  (\ _ inp' -> k inp') inp))
-                       ]
-                     , [exp]
-                     , Nothing
-                     , None
-                     , None
-             )       )
-  pSym  a = pSymExp a (show a)
 
-{-
+
 -- parse_h (P (ph, pf, pr)) = fst . eval . ph  (\ a rest -> if eof rest then push a failAlways else error "pEnd missing?") 
-parse (P (Triple _ (Pf pf) _, _)) = fst . eval .  pf  (\ rest   -> if eof rest then failAlways        else error "pEnd missing?")
--}
-{-
+parse (P (Triple _ (Pf pf) _, _)) = fst . eval [] .  pf  (\ rest   -> if eof rest then failAlways  else error "pEnd missing?")
+
+
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%% Monads      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-unParser_h (P (Triple ph pf pr, _))  =  ph
-unParser_f (P (Triple ph pf pr, _))  =  pf
-unParser_r (P (Triple ph pf pr, _))  =  pr
+unParser_h (P (Triple (Ph ph) pf pr, _))  =  ph
+unParser_f (P (Triple ph (Pf pf) pr, _))  =  pf
+unParser_r (P (Triple ph pf (Pr pr), _))  =  pr
           
-instance Monad (Triple st) where
- None => _ = error "no alternative found in left hand side of monadic bind"
- Triple (Ph ph) (Pf pf) (Pr pr) >>= a2q
+
+None `bind` _ = error "no alternative found in left hand side of monadic bind"
+Triple (Ph ph) (Pf pf) (Pr pr) `bind` a2q
   = Triple (Ph  ( \k -> ph (\ a -> unParser_h (a2q a) k)))
            (Pf  ( \k -> ph (\ a -> unParser_f (a2q a) k)))
-           (Pr  ( \k -> ph (\ a -> unParser_r (a2q a) k)))
- return   = pure  
+           (Pr  ( \k -> ph (\ a -> unParser_r (a2q a) k))) 
 
 instance  Monad (P st) where
        P ( _, Descr (ps, expp, mp, dynl, dynh))  >>=  a2q 
          = let non_empty_result 
                 = mkParser. Descr $
-                           (  map (>>= a2q) ps
+                           (  map (`bind` a2q) ps
                            ,  expp
                            ,  Nothing
-                           ,  dynl , dynh
+                           ,  dynl `bind` a2q , dynh `bind` a2q
                            )
            in case mp of
               Nothing -> non_empty_result
-              Just (greedy, a)  -> if greedy then non_empty_result  <|> a2q a -- to be replace by <<|>
+              Just (greedy, a)  -> if greedy then non_empty_result  <<|> a2q a -- to be replaced by <<|>
                                              else non_empty_result  <|> a2q a                    
        return  = pure 
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%% Greedy      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--}
+
 best_gr :: Steps a -> Steps a -> Steps a
 
 l@  (Step _ _)   `best_gr` _  = l
 l                `best_gr` r  = l `best` r
 
-p <<|> q  = p <|> (const <$> pure () <|> q)  -- not intended behaviour, but working for the time being, has to be replaced
+p <<|> q  = p <|> q  -- not intended behaviour, but working for the time being, has to be replaced
+
 
 {-
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -395,7 +362,7 @@ combinevalues lar           =   Apply (\ lar -> (map fst lar, snd (head lar))) l
 
 map' f ~(x:xs)              =   f x : map f xs
 -} 
-{-
+
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%% pErrors     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -406,32 +373,38 @@ class state `Stores`  errors | state -> errors where
 pErrors :: Stores st errors => P st errors
 pEnd    :: (Stores st errors, Eof st) => P st errors
 
-pErrors = P ( \ k inp -> let (errs, inp') = getErrors inp in k    errs    inp'
-            , \ k inp -> let (errs, inp') = getErrors inp in push errs (k inp')
-            , \ k inp -> let (errs, inp') = getErrors inp in            k inp'
+pErrors = mkParser. Descr $
+            ( []
             , ["pErrors"]
             , Nothing
+            , None
+            , Triple (Ph (\ k inp -> let (errs, inp') = getErrors inp in k    errs    inp' ))
+                     (Pf (\ k inp -> let (errs, inp') = getErrors inp in push errs (k inp')))
+                     (Pr (\ k inp -> let (errs, inp') = getErrors inp in            k inp' ))
             )
 
-pEnd    = P ( \ k inp -> let deleterest inp =  case deleteAtEnd inp of
-                                                  Nothing -> let (finalerrors, finalstate) = getErrors inp
-                                                             in k  finalerrors finalstate
-                                                  Just (i, inp') -> Fail []  [const (i,  deleterest inp')]
-                        in deleterest inp
-            , \ k   inp -> let deleterest inp =  case deleteAtEnd inp of
-                                                    Nothing -> let (finalerrors, finalstate) = getErrors inp
-                                                               in push finalerrors (k finalstate)
-                                                    Just (i, inp') -> Fail [] [const ((i, deleterest inp'))]
-                           in deleterest inp
-            , \ k   inp -> let deleterest inp =  case deleteAtEnd inp of
-                                                    Nothing -> let (finalerrors, finalstate) = getErrors inp
-                                                               in  (k finalstate)
-                                                    Just (i, inp') -> Fail [] [const (i, deleterest inp')]
-                           in deleterest inp
+pEnd    = mkParser .Descr $
+            ( []
             , ["pEnd"]
             , Nothing
-            )
-
+            , None
+            , Triple ( Ph (\ k inp -> let deleterest inp =  case deleteAtEnd inp of
+                                                  Nothing -> let (finalerrors, finalstate) = getErrors inp
+                                                             in k  finalerrors finalstate
+                                                  Just (i, inp') -> Fail   [const (i,  deleterest inp')]
+                                     in deleterest inp))
+                     (Pf(\ k   inp -> let deleterest inp =  case deleteAtEnd inp of
+                                                    Nothing -> let (finalerrors, finalstate) = getErrors inp
+                                                               in push finalerrors (k finalstate)
+                                                    Just (i, inp') -> Fail  [const ((i, deleterest inp'))]
+                                       in deleterest inp))
+                     (Pr (\ k   inp -> let deleterest inp =  case deleteAtEnd inp of
+                                                    Nothing -> let (finalerrors, finalstate) = getErrors inp
+                                                               in  (k finalstate)
+                                                    Just (i, inp') -> Fail  [const (i, deleterest inp')]
+                                       in deleterest inp))
+            )        
+{-
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%% State Change          %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -581,6 +554,40 @@ class Micro p where
 instance  Micro (P_f  st) where
   micro (P_f p) = P_f (\k st -> microstep ( p k st ) )
 -}
+
+-- ** `Symbol'
+-- | Many parsing libraries do not make a distinction between the terminal symbols of the language recognised and the 
+-- tokens actually constructed from the  input. This happens e.g. if we want to recognise an integer or an identifier: we are also interested in which integer occurred in the input, or which identifier. Note that if the alternative later fails repair will take place, instead of trying the other altrenatives at the greedy choice point.
+
+class  Show symbol => Symbol p  symbol token | p symbol -> token where
+
+  pSymExp ::  symbol -> String   -> p token
+
+pSym  a = pSymExp a (show a) 
+
+-- ^ The function `pSym` takes as argument a value of some type `symbol', and returns a value of type `token'. The parser will in general depend on some 
+-- state which is maintained holding the input. The functional dependency fixes the `token` type, based on the `symbol` type and the type of the parser `p`.
+-- Since `pSym' is overloaded both the type and the value of symbol determine how to decompose the input in a `token` and the remaining input.
+
+-- ** `Provides'
+
+class  Provides state symbol token | state symbol -> token  where
+       splitState   ::  symbol ->  (token -> state  -> Steps a) -> state -> Steps a
+
+
+pSplit :: (Provides state symbol token) => (symbol, String) -> P state token 
+pSplit (a, exp)
+   = let splitState_a = splitState a
+     in     mkParser (Descr ( [Triple ( Ph (\ k inp -> splitState_a  k inp))
+                                      ( Pf (\ k inp -> splitState_a  (\ t inp' -> push t (k inp')) inp))
+                                      ( Pr (\ k inp -> splitState_a  (\ _ inp' -> k inp') inp))
+                       ]
+                     , [exp]
+                     , Nothing
+                     , None
+                     , None
+             )       )
+
 
 
 
