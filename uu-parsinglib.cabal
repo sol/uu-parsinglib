@@ -36,7 +36,7 @@ Description:         New version of the Utrecht University parser combinator lib
                      *  contain a module with many list-based derived combinators
                      .
                      
-Category:            Parsing, Text
+Category:            Text.ParserCombinators Parsing Text
 
 Library
   hs-source-dirs:    src
