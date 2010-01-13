@@ -11,3 +11,5 @@ motivation for and documentation of the current package.
 
 Version 2.0.1  - some missing infix declaration were added
 Version 2.1.0  - moved using Control.Applicative
+
+Version 2.3.0  - is the first one in a series of further refinements in which we are adding the abstract interpretations from the old uulib parsers.
