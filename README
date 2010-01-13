@@ -1,15 +1,15 @@
 
+--- Short Description
+
 This repository contains a completely new version of the Utrecht parser combinator library.
 This library is under construction.
 
-For more details see the technical report which is mentioned at the bottom of:
+--- Background material
 
-http://www.cs.uu.nl/wiki/bin/view/HUT/ParserCombinators.
+The library is based on ideas described in the paper:
+
+@inproceedings{uuparsing:piriapolis,Author = {Swierstra, S.~Doaitse},Booktitle = {Language Engineering and Rigorous Software Development},Editor = {Bove, A. and Barbosa, L. and Pardo, A. and and Sousa Pinto, J.},Pages = {252-300},Place = {Piriapolis},Publisher = {Spinger},Series = {LNCS},Title = {Combinator Parsers: a short tutorial},Volume = {5520},Year = {2009}}which is also available as a technical report from http://www.cs.uu.nl/research/techreps/repo/CS-2008/2008-044.pdf
 
 The first part of this report is a general introduction into parser combinators, whereas the second part conatains the 
 motivation for and documentation of the current package.
 
-Version 2.0.1  - some missing infix declaration were added
-Version 2.1.0  - moved using Control.Applicative
-
-Version 2.3.0  - is the first one in a series of further refinements in which we are adding the abstract interpretations from the old uulib parsers.

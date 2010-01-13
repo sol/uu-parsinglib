@@ -86,13 +86,11 @@ type Cost = Int
 type Progress = Int
 
 data  Steps   a  where
-      Step   ::              Progress       ->  Steps a                                -> Steps   a
-      Apply  ::  forall b.   (b -> a)       ->  Steps   b                              -> Steps   a
-
-      Fail   ::              Strings        ->  [Strings   ->     (Cost , Steps   a)]  -> Steps   a
-
-      End_h  ::              ([a] , [a] -> Steps r)        ->  Steps   (a,r)           -> Steps   (a, r)
-      End_f  ::              [Steps   a]   ->  Steps   a                               -> Steps   a
+      Step   ::                 Progress       ->  Steps a                             -> Steps   a
+      Apply  ::  forall a b.    (b -> a)       ->  Steps   b                           -> Steps   a
+      Fail   ::                 Strings        ->  [Strings   ->  (Cost , Steps   a)]  -> Steps   a
+      End_h  ::                 ([a] , [a]     ->  Steps r)    ->  Steps   (a,r)       -> Steps   (a, r)
+      End_f  ::                 [Steps   a]    ->  Steps   a                           -> Steps   a
 
 failAlways  =  Fail [] [const (0, failAlways)]
 noAlts      =  Fail [] []
