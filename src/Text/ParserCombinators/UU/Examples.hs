@@ -40,11 +40,11 @@ main = do print (test pa "a")
           print (test pa "aa")
           print (test  (do  l <- pCount pa
                             pExact l pb) "aaacabbb")
---          print (test (amb ( (++) <$> pa2 <*> pa3 <|> (++) <$> pa3 <*> pa2))  "aaabaa")
+          print (test (amb ( (++) <$> pa2 <*> pa3 <|> (++) <$> pa3 <*> pa2))  "aaabaa")
           print (test paz "ab1z7")
           print (test paz' "m")
           print (test paz' "")
---          print (test parseBoth "(123;456;789)")
+          print (test parseBoth "(123;456;789)")
 
 
 
@@ -74,9 +74,9 @@ pIntList       =  pParens ((pSym ';') `pListSep` (read <$> pList (pSym ('0', '9'
 parseIntString :: Pars String
 parseIntString = pList (pAscii)
 
--- parseBoth = pPair pIntList parseIntString
+parseBoth = pPair pIntList parseIntString
 
--- pPair p q =  amb (Left <$> p <|> Right <$> q)
+pPair p q =  amb (Left <$> p <|> Right <$> q)
 
 -- running the parser; if complete input accepted return the result else fail with reporting unconsumed tokens
 run :: forall t. P (Str Char) t -> String -> t

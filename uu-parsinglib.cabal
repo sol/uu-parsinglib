@@ -35,8 +35,13 @@ Description:         New version of the Utrecht University parser combinator lib
                      .   
                      *  contain a module with many list-based derived combinators
                      .
+                     Versions above 2.3
+                     . contain some form of abstract interpretation from the old uulib versions of these combinators
+                     . are closer to Haskell98, since they do not make use of type families anymore
+                     . note that the basic parser interface will probably not change when we add more features, but the calling conventions
+                       of the outer parser and the class structure upon which the parametrisation is based may change 
                      
-Category:            Parsing, Text
+Category:            Text.ParserCombinators Parsing Text
 
 Library
   hs-source-dirs:    src
