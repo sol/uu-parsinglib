@@ -5,8 +5,7 @@
               FlexibleInstances, 
               FlexibleContexts, 
               UndecidableInstances,
-              NoMonomorphismRestriction,
-              ImpredicativeTypes #-}
+              NoMonomorphismRestriction #-}
 
 module Text.ParserCombinators.UU.Derived where
 import Text.ParserCombinators.UU.Core

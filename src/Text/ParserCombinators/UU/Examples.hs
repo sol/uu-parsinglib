@@ -44,9 +44,11 @@ main = do print (test pa "a")
           print (test paz "ab1z7")
           print (test paz' "m")
           print (test paz' "")
+          print (test (pa <|> pb <?> "just a message") "c")
           print (test parseBoth "(123;456;789)")
+          print (test munch "a^^&&**^^&b")
 
-
+munch = (,,) <$> pa <*> pMunch ( `elem` "^&*") <*> pb
 
 -- bracketing expressions
 pParens p =  pSym '(' *> p <* pSym ')'

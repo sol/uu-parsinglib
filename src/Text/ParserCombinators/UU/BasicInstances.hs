@@ -61,3 +61,17 @@ instance Eof (Str a) where
 
 instance  Stores (Str a) [Error a a Int] where
        getErrors   (Str  inp      msgs pos ok    )        = (msgs, Str inp [] pos ok)
+
+-- tempory addition of pMunch
+
+instance (Show a) => Provides (Str a) (Munch a) [a] where 
+       splitState (Munch p) k (Str tts msgs pos del_ok)
+          =    let (munched, rest) = span p tts
+                   l               = length munched
+               in Step l (k munched (Str rest msgs (pos+l)  (l>0 || del_ok)))
+
+data Munch a = Munch (a -> Bool)
+
+pMunch :: (Text.ParserCombinators.UU.Core.Symbol p (Munch a) [a]) => (a -> Bool) -> p [a]
+pMunch p = pSym (Munch p) 
+
