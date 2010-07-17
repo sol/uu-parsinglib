@@ -23,10 +23,10 @@ ident =
 -}
 
 ident ::  Parser String
-ident = (pList1 (pSym ('a','z')) `micro` 1) <* spaces
+ident = (pList1 (pSym ('a','z')) `micro` 2) <* spaces
 idents = pList1 ident
 
-pTok keyw = pToken keyw <* spaces
+pTok keyw = pToken keyw `micro` 1 <* spaces
 
 spaces :: Parser String
 spaces = pList (pSym ' ')
@@ -42,3 +42,4 @@ takes_second_alt =   pList ident
 
 test = run failing "foo if"
 test2 = run takes_second_alt "if a then b else c"
+test3 = run takes_second_alt "ifx a then b else c"
