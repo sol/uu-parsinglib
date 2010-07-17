@@ -21,7 +21,7 @@ data Error t s pos = Inserted s pos Strings
 instance (Show t, Show s, Show pos) => Show (Error t s pos) where 
  show (Inserted s pos expecting) = "\nInserted " ++ show s ++ " at position " ++ show pos ++  show_expecting  expecting 
  show (Deleted  t pos expecting) = "\nDeleted  " ++ show t ++ " at position " ++ show pos ++  show_expecting  expecting 
- show (DeletedAtEnd t)           = "\nThe token " ++ show t ++ "was not consumed by the parsing process." 
+ show (DeletedAtEnd t)           = "\nThe token " ++ show t ++ " was not consumed by the parsing process."
 
 
 show_expecting [a]    = " expecting " ++ a
