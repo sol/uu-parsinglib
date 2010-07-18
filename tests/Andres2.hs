@@ -3,7 +3,7 @@
 import Control.Monad
 import Text.ParserCombinators.UU.Parsing
 
-type Parser a = forall st. (Provides st Char Char, Provides st (Char, Char) Char) => P st a
+type Parser a =  P (Str Char) a
 
 expr :: Parser Int
 expr = 0 <$ pSym 'x' <|> (+1) <$ pSym '(' <*> expr <* pSym ')'
@@ -17,7 +17,7 @@ run p x = parse ((,) <$> p <*> pEnd) (listToStr x)
 succeed0 = run expr ""
 succeed1 = run expr "("
 succeed2 = run expr "(("
-fail3    = run expr "((("
+fail3    = run (expr <* pSym 'y')  "(((y"
 
 succeed0'  = run expr' ""
 succeed1'  = run expr' "("

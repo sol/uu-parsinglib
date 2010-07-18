@@ -23,6 +23,7 @@ import Maybe
 -- * The Classes Defining the Interface
 -- ** `IsParser`
 
+trace' v m = m
 
 -- | This class collects a number of classes which together defines what a `Parser` should provide. 
 -- Since it is just a predicate we have prefixed the name by the phrase `Is'
@@ -89,13 +90,14 @@ data  Steps   a  where
       End_h  ::                 ([a] , [a]     ->  Steps r)    ->  Steps   (a,r)       -> Steps   (a, r)
       End_f  ::                 [Steps   a]    ->  Steps   a                           -> Steps   a
 
+succeedAlways = let steps = Step 0 steps in steps
 failAlways  =  Fail [] [const (0, failAlways)]
 noAlts      =  Fail [] []
 
 eval :: Steps   a      ->  a
 eval (Step  _    l)     =   eval l
 eval (Cost  _    l)     =   eval l
-eval (Fail   ss  ls  )  =   eval (getCheapest 3 (map ($ss) ls)) 
+eval (Fail   ss  ls  )  =   trace' ("expecting: " ++ show ss) (eval (getCheapest 3 (map ($ss) ls))) 
 eval (Apply  f   l   )  =   f (eval l)
 eval (End_f   _  _   )  =   error "dangling End_f constructor"
 eval (End_h   _  _   )  =   error "dangling End_h constructor"
@@ -133,13 +135,13 @@ ls@(Cost i l)    `best'`  rs@(Cost  j r)
     | i == j                              =   Cost i (l `best'` r)
     | i < j                               =   ls
     | i > j                               =   rs
-End_f  as  l            `best'`  End_f  bs r     =   End_f (as++bs)  (l `best` r)
-End_f  as  l            `best'`  r               =   End_f as        (l `best` r)
-l                       `best'`  End_f  bs r     =   End_f bs        (l `best` r)
+End_f  as  l            `best'`  End_f  bs r          =   End_f (as++bs)  (l `best` r)
+End_f  as  l            `best'`  r                    =   End_f as        (l `best` r)
+l                       `best'`  End_f  bs r          =   End_f bs        (l `best` r)
 End_h  (as, k_h_st)  l  `best'`  End_h  (bs, _) r     =   End_h (as++bs, k_h_st)  (l `best` r)
-End_h  as  l            `best'`  r               =   End_h as (l `best` r)
-l                       `best'`  End_h  bs r     =   End_h bs (l `best` r)
-l                       `best'`  r               =   l `best` r 
+End_h  as  l            `best'`  r                    =   End_h as (l `best` r)
+l                       `best'`  End_h  bs r          =   End_h bs (l `best` r)
+l                       `best'`  r                    =   l `best` r 
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%% getCheapest  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -149,7 +151,7 @@ l                       `best'`  r               =   l `best` r
 getCheapest :: Int -> [(Int, Steps a)] -> Steps a 
 getCheapest _ [] = error "no correcting alternative found"
 getCheapest n l  =  snd $  foldr (\(w,ll) btf@(c, l)
-                               ->    if w < c 
+                               ->    if w < c   -- c is the best cost estimate thus far, and w total costs on this path
                                      then let new = (traverse n ll w c) 
                                           in if new < c then (new, ll) else btf
                                      else btf 
@@ -157,16 +159,38 @@ getCheapest n l  =  snd $  foldr (\(w,ll) btf@(c, l)
 
 
 traverse :: Int -> Steps a -> Int -> Int  -> Int 
-traverse 0  _               =  \ v c ->  v
-traverse n (Step _  l)      =  traverse (n -  1 ) l
-traverse n (Cost _  l)      =  traverse n         l
-traverse n (Apply _ l)      =  traverse n         l
-traverse n (Fail m m2ls)    =  \ v c ->  foldr (\ (w,l) c' -> if v + w < c' then traverse (n -  1 ) l (v+w) c'
-                                                                            else c'
-                                               ) c (map ($m) m2ls)
+traverse 0  _               =  trace' ("traverse " ++ show 0 ++ "\n") (\ v c ->  v)
+traverse n (Step _  l)      =  trace' ("traverse Step  " ++ show n ++ "\n") (traverse (n -  1 ) l)
+traverse n (Cost _  l)      =  trace' ("traverse Cost  " ++ show n ++ "\n") (traverse n         l)
+traverse n (Apply _ l)      =  trace' ("traverse Apply " ++ show n ++ "\n") (traverse n         l)
+traverse n (Fail m m2ls)    =  trace' ("traverse Fail  " ++ show n ++ "\n") (\ v c ->  foldr (\ (w,l) c' -> if v + w < c' then traverse (n -  1 ) l (v+w) c'
+                                                                                                           else c'
+                                                                                            ) c (map ($m) m2ls)
+                                                                    )
 traverse n (End_h ((a, lf))    r)  =  traverse n (lf a `best` removeEnd_h r)
 traverse n (End_f (l      :_)  r)  =  traverse n (l `best` r)   
 
+
+-- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+-- %%%%%%%%%%%%% Computing minimal length     %%%%%%%%%%%%%%%%%%%%%%%%%%%
+-- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+data Nat = Zero
+         | Succ Nat
+         | Infinite
+         deriving  Show
+
+nat_min Zero       _          = trace' "Left Zero in nat_min\n"     (Zero, True)
+nat_min Infinite   r          = trace' "Left Infinite in nat_min\n" (r,    False) 
+nat_min l          Infinite   = trace' "Right Zero in nat_min\n"    (l,    True)
+nat_min _          Zero       = trace' "Right Zero in nat_min\n"    (Zero, False) 
+nat_min (Succ ll)  (Succ rr)  = trace' "Succs in nat_min\n"         (let (v, b) = ll `nat_min` rr in (Succ v, b))
+
+nat_add Infinite  _ = trace' "Infinite in add\n" Infinite
+nat_add Zero      r = trace' "Zero in add\n"     r
+nat_add (Succ l)  r = trace' "Succ in add\n"     (Succ (nat_add l r))
+
+get_length (P _ _ _ l ) = l
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%% Parsers     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -174,93 +198,107 @@ traverse n (End_f (l      :_)  r)  =  traverse n (l `best` r)
 
 -- do not change into data, or be prepared to add ~ at subtle places !!
 data  P   st  a =  P  (forall r . (a  -> st -> Steps r)  -> st -> Steps       r  )   -- history parser
-                      (forall r . (      st -> Steps r)  -> st -> Steps   (a, r) )  -- future parser
-                      (forall r . (      st -> Steps r)  -> st -> Steps       r  )          -- recogniser 
+                      (forall r . (      st -> Steps r)  -> st -> Steps   (a, r) )   -- future parser
+                      (forall r . (      st -> Steps r)  -> st -> Steps       r  )   -- recogniser
+                      Nat                                                            -- minimal length 
 
 instance   Functor (P  state) where 
-  fmap f   (P   ph pf pr)   =  P  ( \  k -> ph ( k .f ))
-                                  ( \  k inp ->  Apply (\(a,r) -> (f a, r)) (pf k inp)) -- pure f <*> pf
-                                  (pr) 
+  fmap f   (P   ph pf pr l)   =  P  ( \  k -> ph ( k .f ))
+                                    ( \  k inp ->  Apply (\(a,r) -> (f a, r)) (pf k inp)) -- pure f <*> pf
+                                    (pr) 
+                                    l
 
 instance   Applicative (P  state) where
-  P ph pf pr <*> ~(P qh qf qr)  =  P  ( \  k -> ph (\ pr -> qh (\ qr -> k (pr qr))))
-                                      ((apply .) . (pf .qf))
-                                      ( pr . qr)  
-  pure a                        =  P  ($a) ((push a).) id
+  P ph pf pr pl <*> ~(P qh qf qr ql)  =  P  ( \  k -> ph (\ pr -> qh (\ qr -> k (pr qr))))
+                                            ((apply .) . (pf .qf))
+                                            ( pr . qr)
+                                            (nat_add pl ql) 
+  pure a                              =  P  ($a) ((push a).) id Zero
 
 
 instance   Alternative (P   state) where 
-  P ph pf pr  <|> P qh qf qr  =  P (\  k inp  -> ph k inp `best` qh k inp)
-                                   (\  k inp  -> pf k inp `best` qf k inp)
-                                   (\  k inp  -> pr k inp `best` qr k inp)
+  P ph pf pr pl <|> P qh qf qr ql =  let (rl, b) = nat_min pl ql
+                                         bestx :: Steps a -> Steps a -> Steps a
+                                         bestx = if b then flip best else best 
+                                     in    P (\  k inp  -> ph k inp `bestx` qh k inp)
+                                             (\  k inp  -> pf k inp `bestx` qf k inp)
+                                             (\  k inp  -> pr k inp `bestx` qr k inp)
+                                             rl
                                             
   empty                =  P  ( \  k inp  ->  noAlts)
                              ( \  k inp  ->  noAlts)
                              ( \  k inp  ->  noAlts)
+                             Infinite
 
 instance  ( Provides state symbol token) => Symbol (P  state) symbol token where
   pSym a =  P ( \ k inp -> splitState a k inp)
               ( \ k inp -> splitState a (\ t inp' -> push t (k inp')) inp)
               ( \ k inp -> splitState a (\ _ inp' -> k inp') inp)
+              (Succ Zero)
 
 (<?>) :: P state a -> String -> P state a
-P  ph  pf  pr  <?> label = P ( \ k inp -> replaceExpected  ( ph k inp))
-                             ( \ k inp -> replaceExpected  ( pf k inp))
-                             ( \ k inp -> replaceExpected  ( pr k inp))
+P  ph  pf  pr  pl <?> label = P ( \ k inp -> replaceExpected  ( ph k inp))
+                                ( \ k inp -> replaceExpected  ( pf k inp))
+                                ( \ k inp -> replaceExpected  ( pr k inp))
+                                pl
                            where replaceExpected (Fail _ c) = (Fail [label] c)
                                  replaceExpected others     = others
       
 data Id a = Id a deriving Show
 
 -- parse_h (P (ph, pf, pr)) = fst . eval . ph  (\ a rest -> if eof rest then push a failAlways else error "pEnd missing?") 
-parse (P ph pf pr) = fst . eval . pf  (\ rest   -> if eof rest then failAlways        else error "pEnd missing?")
+parse (P ph pf pr pl) = fst . eval . pf  (\ rest   -> if eof rest then succeedAlways        else error "pEnd missing?")
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%% Monads      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-unParser_h (P  h   _  _  )  =  h
-unParser_f (P  _   f  _  )  =  f
-unParser_r (P  _   _  r  )  =  r
+unParser_h (P  h   _  _  _)  =  h
+unParser_f (P  _   f  _  _)  =  f
+unParser_r (P  _   _  r  _)  =  r
           
 
 instance  Monad (P st) where
-       P  ph pf pr  >>=  a2q = 
+       P  ph pf pr pl  >>=  a2q = 
                 P  (  \k -> ph (\ a -> unParser_h (a2q a) k))
                    (  \k -> ph (\ a -> unParser_f (a2q a) k))
                    (  \k -> ph (\ a -> unParser_r (a2q a) k))
+                   (nat_add pl (error "cannot compute minimal length of right hand side of monadic parser"))
        return  = pure 
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%% Greedy      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-best_gr :: Steps a -> Steps a -> Steps a
+best_gr mbf l@(Step _ _)  _  = l
+best_gr mbf l             r  = mbf best l r 
 
-l@  (Step _ _)   `best_gr` _  = l
-l                `best_gr` r  = l `best` r
-
-P ph pf pr <<|> P qh qf qr  = P ( \ k st  -> norm (ph k st) `best_gr` norm (qh k st))
-                                ( \ k st  -> norm (pf k st) `best_gr` norm (qf k st))
-                                ( \ k st  -> norm (pr k st) `best_gr` norm (qr k st))
+P ph pf pr pl <<|> P qh qf qr ql  = let (rl, b) = nat_min pl ql
+                                        bestx = if b then flip best else best
+                                    in   P ( \ k st  -> norm (ph k st) `bestx` norm (qh k st))
+                                           ( \ k st  -> norm (pf k st) `bestx` norm (qf k st))
+                                           ( \ k st  -> norm (pr k st) `bestx` norm (qr k st))
+                                           rl
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%% Microsteps  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-P ph pf pr `micro` i = P ( \ k st -> ph (\ a st -> Cost i (k a st)) st)
-                         ( \ k st -> pf (Cost i .k) st)
-                         ( \ k st -> pr (Cost i .k) st)
+P ph pf pr pl `micro` i = P ( \ k st -> ph (\ a st -> Cost i (k a st)) st)
+                            ( \ k st -> pf (Cost i .k) st)
+                            ( \ k st -> pr (Cost i .k) st)
+                            pl 
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%% Ambiguous   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 amb :: P st a -> P st [a]
 
-amb (P ph pf pr) = P ( \k     ->  removeEnd_h . ph (\ a st' -> End_h ([a], \ as -> k as st') noAlts))
-                     ( \k inp ->  combinevalues . removeEnd_f $ pf (\st -> End_f [k st] noAlts) inp)
-                     ( \k     ->  removeEnd_h . pr (\ st' -> End_h ([undefined], \ _ -> k  st') noAlts))
+amb (P ph pf pr pl) = P ( \k     ->  removeEnd_h . ph (\ a st' -> End_h ([a], \ as -> k as st') noAlts))
+                        ( \k inp ->  combinevalues . removeEnd_f $ pf (\st -> End_f [k st] noAlts) inp)
+                        ( \k     ->  removeEnd_h . pr (\ st' -> End_h ([undefined], \ _ -> k  st') noAlts))
+                        pl
 
 removeEnd_h     :: Steps (a, r) -> Steps r
 removeEnd_h (Fail  m ls             )  =   Fail m (applyFail removeEnd_h ls)
@@ -293,6 +331,7 @@ pEnd    :: (Stores st errors, Eof st) => P st errors
 pErrors = P ( \ k inp -> let (errs, inp') = getErrors inp in k    errs    inp' )
             ( \ k inp -> let (errs, inp') = getErrors inp in push errs (k inp'))
             ( \ k inp -> let (errs, inp') = getErrors inp in            k inp' )
+            Zero
 
 pEnd    = P ( \ k inp -> let deleterest inp =  case deleteAtEnd inp of
                                                   Nothing -> let (finalerrors, finalstate) = getErrors inp
@@ -309,6 +348,7 @@ pEnd    = P ( \ k inp -> let deleterest inp =  case deleteAtEnd inp of
                                                                in  (k finalstate)
                                                     Just (i, inp') -> Fail [] [const (i, deleterest inp')]
                            in deleterest inp)
+            Zero
 
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -318,16 +358,17 @@ pEnd    = P ( \ k inp -> let deleterest inp =  case deleteAtEnd inp of
 pSwitch :: (st1 -> (st2, st2 -> st1)) -> P st2 a -> P st1 a
 
 
-pSwitch split (P ph pf pr)    = P (\ k st1 ->  let (st2, back) = split st1
-                                               in ph (\ a st2' -> k a (back st2')) st2)
-                                  (\ k st1 ->  let (st2, back) = split st1
+pSwitch split (P ph pf pr pl)    = P (\ k st1 ->  let (st2, back) = split st1
+                                                  in ph (\ a st2' -> k a (back st2')) st2)
+                                     (\ k st1 ->  let (st2, back) = split st1
                                                   in pf (\st2' -> k (back st2')) st2)
-                                  (\ k st1 ->  let (st2, back) = split st1
+                                     (\ k st1 ->  let (st2, back) = split st1
                                                   in pr (\st2' -> k (back st2')) st2)
+                                     pl 
 
 instance ExtApplicative (P st)  where
-  P ph pf pr <*  ~(P _  _  qr)   = P ( ph. (qr.)) (pf. qr)    (pr . qr)  
-  P _  _  pr *>  ~(P qh qf qr)   = P ( pr . qh  ) (pr. qf)    (pr . qr)
-  f          <$  ~(P _  _  qr)   = P ( qr . ($f)) (\ k st -> push f (qr k st)) qr 
+  P ph pf pr pl <*  ~(P _  _  qr ql)   = P ( ph. (qr.)) (pf. qr)    (pr . qr)            (nat_add pl ql)
+  P _  _  pr pl *>  ~(P qh qf qr ql)   = P ( pr . qh  ) (pr. qf)    (pr . qr)            (nat_add pl ql)
+  f             <$   (P _  _  qr ql)   = P ( qr . ($f)) (\ k st -> push f (qr k st)) qr              ql
 
 type Strings = [String]
