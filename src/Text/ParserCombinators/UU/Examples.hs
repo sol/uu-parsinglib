@@ -12,7 +12,7 @@ import Char
 import Text.ParserCombinators.UU.Parsing
 
 type Pars a = P (Str Char) a 
-test :: Pars a -> String -> (a, [Error Char Char Int]) 
+test :: Pars a -> String -> (a, [Error Int]) 
 test p inp = parse ( (,) <$> p <*> pEnd) (listToStr inp)
 
 lift a = [a]
@@ -69,6 +69,8 @@ pVarId  = (:) <$> pLower <*> pList pIdChar
 pConId  = (:) <$> pUpper <*> pList pIdChar
 pIdChar = pLower <|> pUpper <|> pDigit <|> pAnySym "='"
 
+pAnyToken = pAny pToken
+
 -- parsing two alternatives and returning both rsults
 pAscii = pSym ('\000', '\254')
 pIntList       ::Pars [Int] 
@@ -85,7 +87,7 @@ run :: forall t. P (Str Char) t -> String -> t
 run p i = do let (a,b) = exec p i
              if null b then a else error (show b)
 
-exec :: P (Str Char) b -> String -> (b, [Error Char Char Int])
+exec :: P (Str Char) b -> String -> (b, [Error  Int])
 exec p inp = parse ( (,) <$> p <*> pEnd) (listToStr inp)
 
 

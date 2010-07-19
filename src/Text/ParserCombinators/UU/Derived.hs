@@ -118,10 +118,13 @@ pAny  f l =  foldr (<|>) pFail (map f l)
 pAnySym :: Provides st s s => [s] -> P st s
 pAnySym = pAny pSym 
 
+{-
+-- more efficient version has been defined in the module BasicInstances
 pToken :: Provides st s s => [s] -> P st [s]
 pToken []     = pure []
 pToken (a:as) = (:) <$> pSym a <*> pToken as
 
+
 pAnyToken ::  Provides st s s => [[s]] -> P st [s]
 pAnyToken = pAny pToken
-
+-}

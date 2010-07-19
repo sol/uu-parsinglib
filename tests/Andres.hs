@@ -3,7 +3,11 @@
 import Control.Monad
 import Text.ParserCombinators.UU.Parsing
 
-type Parser a = forall st. (Provides st Char Char, Provides st (Char, Char) Char) => P st a
+type Parser a = forall st. ( Provides st Char Char 
+                           , Provides st (Char, Char) Char
+                           , Provides st (Token Char) [Char]
+                           , Provides st (Munch Char) [Char]
+                           ) => P st a
 
 instance MonadPlus (P st) where
  mzero = pFail
@@ -23,7 +27,7 @@ ident =
 -}
 
 ident ::  Parser String
-ident = (pList1 (pSym ('a','z')) `micro` 2) <* spaces
+ident = ((:) <$> pSym ('a','z') <*> pMunch (\x -> 'a' <= x && x <= 'z') `micro` 2) <* spaces
 idents = pList1 ident
 
 pTok keyw = pToken keyw `micro` 1 <* spaces
@@ -31,13 +35,16 @@ pTok keyw = pToken keyw `micro` 1 <* spaces
 spaces :: Parser String
 spaces = pList (pSym ' ')
 
-run :: Parser a -> String -> (a, [Error Char Char Int])
+run :: Parser a -> String -> (a, [Error Int])
 run p x = parse ((,) <$> p <*> pEnd) (listToStr x)
 
 failing = pList_ng ident <* pToken "if"
 
 takes_second_alt =   pList ident 
-                <|> (\ c t e -> ["IfThenElse"] ++  c   ++  t  ++  e) <$ pTok "if" <*> pList_ng ident <* pTok "then" <*> pList_ng ident <* pTok "else" <*> pList_ng ident  
+                <|> (\ c t e -> ["IfThenElse"] ++  c   ++  t  ++  e) 
+                    <$ pTok "if"   <*> pList_ng ident 
+                    <* pTok "then" <*> pList_ng ident
+                    <* pTok "else" <*> pList_ng ident  
 
 
 test = run failing "foo if"
