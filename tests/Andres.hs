@@ -33,7 +33,7 @@ idents = pList1 ident
 pTok keyw = pToken keyw `micro` 1 <* spaces
 
 spaces :: Parser String
-spaces = pList (pSym ' ')
+spaces = pMunch (==' ')
 
 run :: Parser a -> String -> (a, [Error Int])
 run p x = parse ((,) <$> p <*> pEnd) (listToStr x)
