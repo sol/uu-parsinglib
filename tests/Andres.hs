@@ -9,23 +9,6 @@ type Parser a = forall st. ( Provides st Char Char
                            , Provides st (Munch Char) [Char]
                            ) => P st a
 
-instance MonadPlus (P st) where
- mzero = pFail
- mplus = (<|>)
-
-keywords :: [String]
-keywords = ["let", "in", "if", "then", "else"]
-
-{-
-ident :: Parser String
-ident =
- do
-   ys <- pList1 (pSym ('a','z'))
-   guard (not (ys `elem` keywords))
-   spaces
-   return ys
--}
-
 ident ::  Parser String
 ident = ((:) <$> pSym ('a','z') <*> pMunch (\x -> 'a' <= x && x <= 'z') `micro` 2) <* spaces
 idents = pList1 ident

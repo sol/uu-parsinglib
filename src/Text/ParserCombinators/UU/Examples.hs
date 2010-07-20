@@ -9,16 +9,26 @@
 
 module Text.ParserCombinators.UU.Examples where
 import Char
-import Text.ParserCombinators.UU.Parsing
+import Text.ParserCombinators.UU
 
-type Pars a = P (Str Char) a 
-test :: Pars a -> String -> (a, [Error Int]) 
-test p inp = parse ( (,) <$> p <*> pEnd) (listToStr inp)
+type Parser a = P (Str Char) a 
+
+-- running the parser; if complete input accepted return the result else fail with reporting unconsumed tokens
+run :: Show t =>  P (Str Char) t -> String -> IO ()
+run p inp = do  let r@(a, errors) =  parse ( (,) <$> p <*> pEnd) (listToStr inp)
+                print ("Result: " ++ show a)
+                if null errors then  return ()
+                               else  print ("With errors: "++ show errors)
+
+
 
 lift a = [a]
 
-pa, pb, paz ::Pars [Char] 
+pa, pb, paz ::Parser [Char] 
 pa = lift <$> pSym 'a'
+-- | This parser recognises a single character $'a'$, and returns this value as a singleton list.
+
+-- | 
 pb = lift <$> pSym 'b'
 p <++> q = (++) <$> p <*> q
 pa2 =   pa <++> pa
@@ -33,20 +43,19 @@ paz = pList (pSym ('a', 'z'))
 paz' = pSym (\t -> 'a' <= t && t <= 'z', "'a'..'z'", 'k')
 
 main :: IO ()
-main = do print (test pa "a")
-          print (test pa "b")
-          print (test pa2 "bbab")
-          print (test pa "ba")
-          print (test pa "aa")
-          print (test  (do  l <- pCount pa
-                            pExact l pb) "aaacabbb")
-          print (test (amb ( (++) <$> pa2 <*> pa3 <|> (++) <$> pa3 <*> pa2))  "aaabaa")
-          print (test paz "ab1z7")
-          print (test paz' "m")
-          print (test paz' "")
-          print (test (pa <|> pb <?> "just a message") "c")
-          print (test parseBoth "(123;456;789)")
-          print (test munch "a^^&&**^^&b")
+main = do run pa "a"
+          run pa "b"
+          run pa2 "bbab"
+          run pa "ba"
+          run pa "aa"
+          run (do  {l <- pCount pa; pExact l pb}) "aaacabbb"
+          run (amb ( (++) <$> pa2 <*> pa3 <|> (++) <$> pa3 <*> pa2))  "aaabaa"
+          run paz "ab1z7"
+          run paz' "m"
+          run paz' ""
+          run (pa <|> pb <?> "just a message") "c"
+          run parseBoth "(123;456;789)"
+          run munch "a^^&&**^^&b"
 
 munch = (,,) <$> pa <*> pMunch ( `elem` "^&*") <*> pb
 
@@ -73,22 +82,16 @@ pAnyToken = pAny pToken
 
 -- parsing two alternatives and returning both rsults
 pAscii = pSym ('\000', '\254')
-pIntList       ::Pars [Int] 
+pIntList       ::Parser [Int] 
 pIntList       =  pParens ((pSym ';') `pListSep` (read <$> pList (pSym ('0', '9'))))
-parseIntString :: Pars String
+parseIntString :: Parser String
 parseIntString = pList (pAscii)
 
 parseBoth = pPair pIntList parseIntString
 
 pPair p q =  amb (Left <$> p <|> Right <$> q)
 
--- running the parser; if complete input accepted return the result else fail with reporting unconsumed tokens
-run :: forall t. P (Str Char) t -> String -> t
-run p i = do let (a,b) = exec p i
-             if null b then a else error (show b)
 
-exec :: P (Str Char) b -> String -> (b, [Error  Int])
-exec p inp = parse ( (,) <$> p <*> pEnd) (listToStr inp)
 
 
 -- Testing
@@ -102,8 +105,44 @@ expr    = term   `sepBy` (pOp ('+', (+)) <|> pOp ('-', (-)))
 term    = factor `sepBy` pOp ('*' , (*))
 factor  = pNatural <|> pSym '(' *> expr <* pSym ')'
 
-rune ::  String -> IO ()
-rune i = do let (a,b) = exec expr i
-            if null b then  print ("Result: " ++ show a)
-                      else do print b
-                              print ("Result: " ++ show a)
+wfp :: Parser Int
+wfp = 0 <$ pSym 'x' <|> (+1) <$ pSym '(' <*> wfp <* pSym ')'
+
+expr' :: Parser Int
+expr' = (+1) <$ pSym '(' <*> expr' <* pSym ')' <|> 0 <$ pSym 'x'
+{-
+
+succeed0 = run expr ""
+succeed1 = run expr "("
+succeed2 = run expr "(("
+fail3    = run (expr <* pSym 'y')  "(((y"
+
+succeed0'  = run expr' ""
+succeed1'  = run expr' "("
+succeed2'  = run expr' "(("
+succeed3'  = run expr' "((("
+succeed30' = run expr' "(((((((((((((((((((((((((((((("
+-}
+
+ident ::  Parser String
+ident = ((:) <$> pSym ('a','z') <*> pMunch (\x -> 'a' <= x && x <= 'z') `micro` 2) <* spaces
+idents = pList1 ident
+
+pTok keyw = pToken keyw `micro` 1 <* spaces
+
+spaces :: Parser String
+spaces = pMunch (==' ')
+
+failing = pList_ng ident <* pToken "if"
+
+takes_second_alt =   pList ident 
+                <|> (\ c t e -> ["IfThenElse"] ++  c   ++  t  ++  e) 
+                    <$ pTok "if"   <*> pList_ng ident 
+                    <* pTok "then" <*> pList_ng ident
+                    <* pTok "else" <*> pList_ng ident  
+
+
+test = run failing "foo if"
+test2 = run takes_second_alt "if a then b else c"
+test3 = run takes_second_alt "ifx a then b else c"
+

@@ -50,67 +50,72 @@ pPacked l r x   =   l *>  x <*   r
 -- =======================================================================================
 pFoldr    :: (a -> a1 -> a1, a1) -> P st a -> P st a1
 pFoldr_ng ::  (a -> a1 -> a1, a1) -> P st a -> P st a1
-pFoldr         alg@(op,e)     p = pfm where pfm = (op <$> p <*> pfm) `opt` e
-pFoldr_ng      alg@(op,e)     p = pfm where pfm = (op <$> p <*> pfm)  <|> pure e
+pFoldr         alg@(op,e)     p =  must_be_non_empty "pFoldr" p pfm
+                                   where pfm = (op <$> p <*> pfm) `opt` e
+pFoldr_ng      alg@(op,e)     p =  must_be_non_empty "pFoldr_ng" p pfm 
+                                   where pfm = (op <$> p <*> pfm)  <|> pure e
 
 
 pFoldr1    :: (v -> b -> b, b) -> P st v -> P st b
 pFoldr1_ng ::  (v -> b -> b, b) -> P st v -> P st b
-pFoldr1        alg@(op,e)     p = op <$> p <*> pFoldr  alg p
-pFoldr1_ng     alg@(op,e)     p = op <$> p <*> pFoldr_ng  alg p
+pFoldr1        alg@(op,e)     p =  must_be_non_empty "pFoldr1"    p (op <$> p <*> pFoldr     alg p) 
+pFoldr1_ng     alg@(op,e)     p =  must_be_non_empty "pFoldr1_ng" p (op <$> p <*> pFoldr_ng  alg p)
 
 pFoldrSep    ::  (v -> b -> b, b) -> P st a -> P st v -> P st b
 pFoldrSep_ng ::  (v -> b -> b, b) -> P st a -> P st v -> P st b
-pFoldrSep      alg@(op,e) sep p = op <$> p <*> pFoldr    alg sepp `opt` e
-                                  where sepp = sep *> p
-pFoldrSep_ng   alg@(op,e) sep p = op <$> p <*> pFoldr_ng alg sepp <|>  pure e
-                                  where sepp = sep *> p
+pFoldrSep      alg@(op,e) sep p =  must_be_non_empties "pFoldrSep" sep   p
+                                   (op <$> p <*> pFoldr    alg sepp `opt` e)
+                                   where sepp = sep *> p
+pFoldrSep_ng   alg@(op,e) sep p =  must_be_non_empties "pFoldrSep" sep   p
+                                   (op <$> p <*> pFoldr_ng alg sepp <|>  pure e)
+                                   where sepp = sep *> p
 
 pFoldr1Sep    ::   (a -> b -> b, b) -> P st a1 ->P st a -> P st b
 pFoldr1Sep_ng ::   (a -> b -> b, b) -> P st a1 ->P st a -> P st b
-pFoldr1Sep     alg@(op,e) sep p = pfm where pfm = op <$> p <*> pFoldr    alg (sep *> p)
-pFoldr1Sep_ng  alg@(op,e) sep p = pfm where pfm = op <$> p <*> pFoldr_ng alg (sep *> p)
+pFoldr1Sep     alg@(op,e) sep p =  must_be_non_empties "pFoldr1Sep"    sep   p pfm
+                                   where pfm = op <$> p <*> pFoldr    alg (sep *> p)
+pFoldr1Sep_ng  alg@(op,e) sep p =  must_be_non_empties "pFoldr1Sep_ng" sep   p pfm 
+                                   where pfm = op <$> p <*> pFoldr_ng alg (sep *> p)
 
 list_alg :: (a -> [a] -> [a], [a1])
 list_alg = ((:), [])
 
 pList    ::    P st a -> P st [a]
 pList_ng ::    P st a -> P st [a]
-pList         p = pFoldr        list_alg   p
-pList_ng      p = pFoldr_ng     list_alg   p
+pList         p =  must_be_non_empty "pList"    p (pFoldr        list_alg   p)
+pList_ng      p =  must_be_non_empty "pList_ng" p (pFoldr_ng     list_alg   p)
 
 pList1    ::   P st a -> P st [a]
 pList1_ng ::   P st a -> P st [a]
-pList1         p = pFoldr1       list_alg   p
-pList1_ng      p = pFoldr1_ng    list_alg   p
+pList1         p =  must_be_non_empty "pList"    p (pFoldr1       list_alg   p)
+pList1_ng      p =  must_be_non_empty "pList_ng" p (pFoldr1_ng    list_alg   p)
 
 
 pListSep    :: P st a1 -> P st a -> P st [a]
 pListSep_ng :: P st a1 -> P st a -> P st [a]
-pListSep      sep p = pFoldrSep     list_alg sep p
-pListSep_ng   sep p = pFoldrSep_ng  list_alg sep p
+pListSep      sep p = must_be_non_empties "pListSep"    sep   p (pFoldrSep     list_alg sep p)
+pListSep_ng   sep p = must_be_non_empties "pListSep_ng" sep   p pFoldrSep_ng  list_alg sep p
 
 pList1Sep    :: P st a1 -> P st a -> P st [a]
 pList1Sep_ng :: P st a1 -> P st a -> P st [a]
-pList1Sep     s p = pFoldr1Sep    list_alg s p
-pList1Sep_ng  s p = pFoldr1Sep_ng list_alg s p
+pList1Sep     s p =  must_be_non_empties "pListSep"    s   p (pFoldr1Sep    list_alg s p)
+pList1Sep_ng  s p =  must_be_non_empties "pListSep_ng" s   p (pFoldr1Sep_ng list_alg s p)
 
 pChainr    :: P st (c -> c -> c) -> P st c -> P st c
 pChainr_ng :: P st (c -> c -> c) -> P st c -> P st c
-pChainr    op x    =  r where r = x <??> (flip <$> op <*> r)
-pChainr_ng op x    =  r where r = x <**> ((flip <$> op <*> r)  <|> pure id)
+pChainr    op x    =   must_be_non_empties "pChainr"    op   x r where r = x <??> (flip <$> op <*> r)
+pChainr_ng op x    =   must_be_non_empties "pChainr_ng" op   x r where r = x <**> ((flip <$> op <*> r)  <|> pure id)
 
 pChainl    :: P st (c -> c -> c) -> P st c -> P st c
 pChainl_ng :: P st (c -> c -> c) -> P st c -> P st c
-pChainl   op x    = f <$> x <*> pList (flip <$> op <*> x) 
+pChainl   op x    =  must_be_non_empties "pChainl"    op   x (f <$> x <*> pList (flip <$> op <*> x)) 
                     where  f x [] = x
                            f x (func:rest) = f (func x) rest
-pChainl_ng op x    = f <$> x <*> pList_ng (flip <$> op <*> x) 
+pChainl_ng op x    = must_be_non_empties "pChainl_ng" op   x (f <$> x <*> pList_ng (flip <$> op <*> x))
                      where f x [] = x
                            f x (func:rest) = f (func x) rest
 
 -- | Parses using any of the parsers in the list 'l'.
-
 pAny :: (a -> P st a1) -> [a] -> P st a1
 pAny  f l =  foldr (<|>) pFail (map f l)
 
@@ -118,13 +123,3 @@ pAny  f l =  foldr (<|>) pFail (map f l)
 pAnySym :: Provides st s s => [s] -> P st s
 pAnySym = pAny pSym 
 
-{-
--- more efficient version has been defined in the module BasicInstances
-pToken :: Provides st s s => [s] -> P st [s]
-pToken []     = pure []
-pToken (a:as) = (:) <$> pSym a <*> pToken as
-
-
-pAnyToken ::  Provides st s s => [[s]] -> P st [s]
-pAnyToken = pAny pToken
--}

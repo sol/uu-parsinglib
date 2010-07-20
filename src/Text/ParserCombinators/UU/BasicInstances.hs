@@ -60,7 +60,7 @@ instance Show a => Eof (Str a) where
        deleteAtEnd _                                      = Nothing
 
 
-instance  Stores (Str a) [Error Int] where
+instance  Stores (Str a) (Error Int) where
        getErrors   (Str  inp      msgs pos ok    )        = (msgs, Str inp [] pos ok)
 
 -- pMunch
@@ -74,7 +74,7 @@ instance (Show a) => Provides (Str a) (Munch a) [a] where
                in Step l (k munched (Str rest msgs (pos+l)  (l>0 || del_ok)))
 
 pMunch :: (Text.ParserCombinators.UU.Core.Symbol p (Munch a) [a]) => (a -> Bool) -> p [a]
-pMunch p = pSym (Munch p) 
+pMunch p = pSymExt Zero (Just []) (Munch p)
 
 data Token a = Token [a] Int -- the Int value represents the cost for inserting such a token
 
@@ -83,14 +83,18 @@ instance (Show a, Eq a) => Provides (Str a) (Token a) [a] where
    =  let l = length as
           msg = show as 
       in  case stripPrefix as tts of
-          Nothing  ->  let ins exp =  (cost, k as             (Str tts         (msgs ++ [Inserted msg               pos  exp])   pos     False))
+          Nothing  ->  let ins exp =  (cost, k as             (Str tts         (msgs ++ [Inserted msg               pos  exp])   pos    False))
                            del exp =  (5,    splitState tok k (Str (tail tts)  (msgs ++ [Deleted  (show(head tts))  pos  exp])  (pos+1) True ))
                        in if null tts then  Fail [msg] [ins]
                                       else  Fail [msg] (ins: if del_ok then [del] else [])
           Just rest -> Step l (k as (Str rest msgs (pos+l) True))
 
-pToken as = pSym (Token as 5)
-pTokenCost as c = pSym (Token as c)
+pToken     as   =   pTokenCost as 5
+pTokenCost as c =   if null as then error "call to pToken with empty token"
+                    else pSymExt (length as) Nothing (Token as c)
+                    where length [] = Zero
+                          length (_:as) = Succ (length as)
+
 
 
 
