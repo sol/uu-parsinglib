@@ -1,0 +1,71 @@
+-- | This module just contains the CHANGELOG
+--  Version 2.4.4
+--       
+--       * solved a mistake which had crept in in the greedy choice
+--       
+--       * added priority for @`<<|>`@ which had disappeared
+--       
+--       * added an example how to achieve the effect of manytill from parsec
+-- 
+--  Version 2.4.3
+--
+--       * removed the classes IsParser and Symbol, which made the code shorter and more H98-alike
+--         last version with dynamic error message computation
+--
+--  Version 2.4.2
+--
+--       * fixed dependency in cabal file to base >=4.2
+--
+--       * moved definition of <$ to the class Functor and removed the class ExtApplicative 
+--
+--  Version 2.4.1
+--
+--       * added the module Text.ParserCombinators.Merge for recognizing alternating sequences
+--
+--       * made @P st@ an instance of @`MonadPlus`@
+--
+--       * beautified Haddock documentation
+--
+--  Version 2.4.0
+--
+--       * contains abstract interpretation for minimal lenth, in order to avoid recursive correction process
+--
+--       * idem for checking that no repeating combinators like pList are parameterised with possibly empty parsers
+--
+--       * lots of Haddcock doumentation in "Text.ParserCombinators.UU.Examples"
+--
+--  Version 2.3.4
+--
+--       * removed dependecies on impredictaive types, preparing for next GHC version
+--
+--  Version 2.3.3
+--
+--       * added `pMunch` which takes a Boolean function, and recognises the longest prefix for which the symbols match the predicate
+-- 
+--       * added the infix operator with piority 2 @\<?> :: P state a -> String -> P state a@ which replaces the list of expected symbols
+--         in error message by its right argument String
+--
+--  Version 2.3.2
+--
+--       * added microsteps, which can be used to disambiguate
+--
+-- Version 2.3.1
+--
+--       * fix for GHC 6.12, because of change in GADT definition handling
+--
+-- Versions above 2.2:
+--
+--       *  make use of type families
+--   
+--       *  contain a module with many list-based derived combinators
+--
+-- Versions above 2.1: 
+--       * based on Control.Applicative
+--
+--    Note that the basic parser interface will probably not change much when we add more features, but the calling conventions
+--    of the outer parser and the class structure upon which the parametrisation is based may change slightly
+
+module Text.ParserCombinators.UU.CHANGELOG () where
+
+
+dummy = undefined

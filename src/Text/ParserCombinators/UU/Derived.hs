@@ -9,6 +9,10 @@
 
 module Text.ParserCombinators.UU.Derived where
 import Text.ParserCombinators.UU.Core
+import Control.Monad
+
+-- | This module contains a large variety of combinators for list-lile structures. the extension @_ng@ indiactes that that varinat is the non-greedy variant.
+--   See the "Text.ParserCombinators.UU.Examples" module for some exmaples of their use.
 
 pReturn  = pure
 pFail    = empty
@@ -24,10 +28,10 @@ infixl 2 `opt`
 -- recognise the empty string, since this would make your parser ambiguous!!
 
 opt ::  P st a -> a -> P st a
-p `opt` v       =  p <<|> pure v 
+p `opt` v       = must_be_non_empty "opt" p (p <<|> pure v) 
 
 pMaybe :: P st a -> P st (Maybe a)
-pMaybe p = Just <$> p `opt` Nothing 
+pMaybe p = must_be_non_empty "pMaybe" p (Just <$> p `opt` Nothing) 
 
 pEither p q = Left <$> p <|> Right <$> q
                                                 
@@ -115,11 +119,16 @@ pChainl_ng op x    = must_be_non_empties "pChainl_ng" op   x (f <$> x <*> pList_
                      where f x [] = x
                            f x (func:rest) = f (func x) rest
 
--- | Parses using any of the parsers in the list 'l'.
+-- | Build a parser for each elemnt in its argument list and tries them all.
 pAny :: (a -> P st a1) -> [a] -> P st a1
 pAny  f l =  foldr (<|>) pFail (map f l)
 
 -- | Parses any of the symbols in 'l'.
 pAnySym :: Provides st s s => [s] -> P st s
 pAnySym = pAny pSym 
+
+instance MonadPlus (P st) where
+  mzero = pFail
+  mplus = (<|>)
+
 

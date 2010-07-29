@@ -20,9 +20,11 @@ data Error  pos =    Inserted String pos Strings
                    | DeletedAtEnd String
 
 instance (Show pos) => Show (Error  pos) where 
- show (Inserted s pos expecting) = "\nInserted " ++  s ++ " at position " ++ show pos ++  show_expecting  expecting 
- show (Deleted  t pos expecting) = "\nDeleted  " ++  t ++ " at position " ++ show pos ++  show_expecting  expecting 
- show (DeletedAtEnd t)           = "\nThe token " ++ t ++ " was not consumed by the parsing process."
+ show (Inserted s pos expecting) = "-- >    Inserted " ++  s ++ " at position " ++ show pos ++  show_expecting  expecting 
+ show (Deleted  t pos expecting) = "-- >    Deleted  " ++  t ++ " at position " ++ show pos ++  show_expecting  expecting 
+ show (DeletedAtEnd t)           = "-- >    The token " ++ t ++ " was not consumed by the parsing process."
+
+show_errors = sequence_ . (map (putStrLn . show))
 
 
 show_expecting [a]    = " expecting " ++ a
@@ -73,7 +75,7 @@ instance (Show a) => Provides (Str a) (Munch a) [a] where
                    l               = length munched
                in Step l (k munched (Str rest msgs (pos+l)  (l>0 || del_ok)))
 
-pMunch :: (Text.ParserCombinators.UU.Core.Symbol p (Munch a) [a]) => (a -> Bool) -> p [a]
+pMunch :: (Provides st (Munch a) [a]) => (a -> Bool) -> P st [a]
 pMunch p = pSymExt Zero (Just []) (Munch p)
 
 data Token a = Token [a] Int -- the Int value represents the cost for inserting such a token

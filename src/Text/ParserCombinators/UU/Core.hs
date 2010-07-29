@@ -2,12 +2,7 @@
 {-# LANGUAGE  RankNTypes, 
               GADTs,
               MultiParamTypeClasses,
-              FunctionalDependencies, 
-              FlexibleInstances, 
-              FlexibleContexts, 
-              UndecidableInstances,
-              NoMonomorphismRestriction #-}
-
+              FunctionalDependencies #-}
 
 -- | The module `Core` contains the basic functionality of the parser library. 
 --   It  uses the  breadth-first module  to realise online generation of results, the error
@@ -15,56 +10,20 @@
 --   and  recognisers involved.For typical use cases of the libray see the module @"Text.ParserCombinators.UU.Examples"@
 
 module Text.ParserCombinators.UU.Core ( module Text.ParserCombinators.UU.Core
-                                      , module Control.Applicative
-                                      , module Text.ParserCombinators.UU.BreadthFirstSearch) where
-import Control.Applicative  hiding  ((<$), many, some, optional)
-import Text.ParserCombinators.UU.BreadthFirstSearch
+                                      , module Control.Applicative) where
+import Control.Applicative  hiding  (many, some, optional)
 import Char
 import Debug.Trace
 import Maybe
 
--- * The Classes Defining the Interface
--- ** `IsParser`
 
--- | This class collects a number of classes which together defines what a `Parser` should provide. 
--- Since it is just a predicate we have prefixed the name by the phrase `Is'
+infix   2  <?>    -- should be the last element in a sequence of alternatives
+infixl  3  <<|>   -- intended use p <<|> q <<|> r <|> x <|> y <?> z
 
-class    (Applicative p, ExtApplicative p, Alternative p)    => IsParser p where
-instance (Applicative p, ExtApplicative p, Alternative p)    => IsParser p where
-
-infixl  4  <$
-infix   2  <?>
-
--- ** `ExtApplicative'
--- | The module "Control.Applicative" contains the definition for `<$` which cannot be changed . 
--- Since we want to give optimised implementations of this combinator, we hide its definition, and define a class containing its signature.
-
-class  ExtApplicative p where
-  (<$)      ::  a               -> p b   ->   p  a
-
--- ** `Symbol'
--- | Many parsing libraries do not make a distinction between the terminal symbols of the language recognised and the 
--- tokens actually constructed from the  input. This happens e.g. if we want to recognise an integer or an identifier: we are also interested in which integer occurred in the input, 
--- or which identifier. 
-
--- ^ The function `pSym` takes as argument a value of some type `symbol', and returns a value of type `token'. The parser will in general depend on some 
---   state which is maintained holding the input. The functional dependency fixes the `token` type, based on the `symbol` type and the type of the parser `p`.
---   Since `pSym' is overloaded both the type and the value of symbol determine how to decompose the input in a `token` and the remaining input.
---   `pSymExt` is the actual function, which takes two extra parameters: one describing the minimal numer of tokens recognised, 
---   and the second whether the symbol can recognise the empty string and the value which is to be returned in that case
-
-class  Symbol p  symbol token | p symbol -> token where
-  -- | The first parameter to `pSymExt` is a `Nat` which describes the minimal numer of tokens accepted by this parser. It is used in the abstract interpretation
-  --   which computes this property for each parser. It's main use is in choosinga non-recursive alternative in case a non-terminal has to be inserted.
-  --   The second parameter indicates whether this parser can also skip recognising anything and just return a value of type a, hence a `Maybe a`
-  
-  pSymExt ::  Nat -> Maybe token -> symbol -> p token
-  pSym    ::                        symbol -> p token
-  pSym  s   = pSymExt (Succ Zero) Nothing s 
 
 -- ** `Provides'
 
--- | The function `splitStae` playes a crucial role in splitting up the state. The `symbol` parameter tells us what kind of thing, and even which value of that kind, is expected from the input.
+-- | The function `splitState` playes a crucial role in splitting up the state. The `symbol` parameter tells us what kind of thing, and even which value of that kind, is expected from the input.
 --   The state  and  and the symbol type together determine what kind of token has to be returned. Since the function is overloaded we do not have to invent 
 --   all kind of different names for our elementary parsers.
 class  Provides state symbol token | state symbol -> token  where
@@ -83,7 +42,6 @@ class Eof state where
 -- %%%%%%%%%%%%% Parsers     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--- do not change into data, or be prepared to add ~ at subtle places !!
 data  P   st  a =  P  (forall r . (a  -> st -> Steps r)  -> st -> Steps       r  ) --  history parser
                       (forall r . (      st -> Steps r)  -> st -> Steps   (a, r) ) --  future parser
                       (forall r . (      st -> Steps r)  -> st -> Steps       r  ) --  recogniser
@@ -97,6 +55,9 @@ instance   Functor (P  state) where
                                        (pr) 
                                        l
                                        (fmap f me)
+  f <$   (P _  _  qr ql qe)   
+    = P ( qr . ($f)) (\ k st -> push f (qr k st)) qr  ql  (case qe of Nothing -> Nothing; _ -> Just f)
+
 
 -- ** Parsers are Applicative:  @`<*>`@,  @`<*`@,  @`*>`@ and  @`pure`@
 instance   Applicative (P  state) where
@@ -134,12 +95,27 @@ instance   Alternative (P   state) where
                              Nothing
 
 -- ** Parsers can recognise single tokens:  @`pSym`@ and  @`pSymExt`@
-instance  ( Provides state symbol token) => Symbol (P  state) symbol token where
-  pSymExt l e a  = P ( \ k inp -> splitState a k inp)
-                     ( \ k inp -> splitState a (\ t inp' -> push t (k inp')) inp)
-                     ( \ k inp -> splitState a (\ _ inp' -> k inp') inp)
-                     l
-                     e
+-- | Many parsing libraries do not make a distinction between the terminal symbols of the language recognised 
+--   and the tokens actually constructed from the  input. 
+--   This happens e.g. if we want to recognise an integer or an identifier: 
+--   we are also interested in which integer occurred in the input, or which identifier. 
+--   The function `pSymExt` takes as argument a value of some type `symbol', and returns a value of type `token'. The parser will in general depend on some 
+--   state which is maintained holding the input. The functional dependency fixes the `token` type, based on the `symbol` type and the type of the parser `p`.
+--   Since `pSymExt' is overloaded both the type and the value of symbol determine how to decompose the input in a `token` and the remaining input.
+--   `pSymExt`  takes two extra parameters: one describing the minimal numer of tokens recognised, 
+--   and the second whether the symbol can recognise the empty string and the value which is to be returned in that case
+  
+pSymExt ::   (Provides state symbol token) => Nat -> Maybe token -> symbol -> P state token
+
+  
+pSymExt l e a  = P ( \ k inp -> splitState a k inp)
+                   ( \ k inp -> splitState a (\ t inp' -> push t (k inp')) inp)
+                   ( \ k inp -> splitState a (\ _ inp' -> k inp') inp)
+                   l
+                   e
+-- | @`pSym`@ covers the most common case of recognsiing a symbol: a single token is removed form the input, and it cannot recognise the empty string
+pSym    ::   (Provides state symbol token) =>                       symbol -> P state token
+pSym  s   = pSymExt (Succ Zero) Nothing s 
 
 -- ** Parsers are Monads:  @`>>=`@ and  @`return`@
 
@@ -183,9 +159,15 @@ P  ph  pf  pr  pl pe <?> label = P ( \ k inp -> replaceExpected  ( ph k inp))
 P ph pf pr pl pe <<|> P qh qf qr ql qe 
     = let (rl, b) = nat_min pl ql
           bestx = if b then flip best else best
-      in   P ( \ k st  -> norm (ph k st) `bestx` norm (qh k st))
-             ( \ k st  -> norm (pf k st) `bestx` norm (qf k st))
-             ( \ k st  -> norm (pr k st) `bestx` norm (qr k st))
+      in   P ( \ k st  -> let left = norm (ph k st) 
+                          in if has_success left then left
+                             else left `bestx` norm (qh k st))
+             ( \ k st  ->  let left = norm (pf k st) 
+                           in if has_success left then left
+                              else left `bestx` norm (qf k st))
+             ( \ k st  ->  let left = norm (pr k st) 
+                           in if has_success left then left
+                              else left `bestx` norm (qr k st))
              rl
              (case (pe, qe)  of
                  (Nothing, _      ) -> qe
@@ -194,9 +176,9 @@ P ph pf pr pl pe <<|> P qh qf qr ql qe
 
 -- ** Parsers can be disambiguated using micro-steps:  @`micro`@
 -- | `micro` inserts a `Cost` step into the sequence representing the progress the parser is making; for its use see `Text.ParserCombinators.UU.Examples` 
-P ph pf pr pl pe `micro` i = P ( \ k st -> ph (\ a st -> Cost i (k a st)) st)
-                               ( \ k st -> pf (Cost i .k) st)
-                               ( \ k st -> pr (Cost i .k) st)
+P ph pf pr pl pe `micro` i = P ( \ k st -> ph (\ a st -> Micro i (k a st)) st)
+                               ( \ k st -> pf (Micro i .k) st)
+                               ( \ k st -> pr (Micro i .k) st)
                                pl
                                pe 
 
@@ -210,11 +192,8 @@ amb (P ph pf pr pl pe) = P ( \k     ->  removeEnd_h . ph (\ a st' -> End_h ([a],
                            ( \k     ->  removeEnd_h . pr (\ st' -> End_h ([undefined], \ _ -> k  st') noAlts))
                            pl
                            (fmap pure pe)
-
-
-
-combinevalues  :: Steps [(a,r)] -> Steps ([a],r)
-combinevalues lar           =   Apply (\ lar -> (map fst lar, snd (head lar))) lar
+                         where  combinevalues  :: Steps [(a,r)] -> Steps ([a],r)
+                                combinevalues lar           =   Apply (\ lar -> (map fst lar, snd (head lar))) lar
 
        
 -- ** Parse errors can be retreived from the state: @`pErrors`@
@@ -231,7 +210,7 @@ pErrors = P ( \ k inp -> let (errs, inp') = getErrors inp in k    errs    inp' )
             Zero       -- this parser does not consume input
             (Just [])  -- the errors consumed cannot be determined statically! Hence we assume none.
 
--- ** Starting and finalise the parsing process: @`pEnd`@ and @`parse`@
+-- ** Starting and finalising the parsing process: @`pEnd`@ and @`parse`@
 -- | The function `pEnd` should be called at the end of the parsing process. It deletes any unsonsumed input, and reports its preence as an eror.
 
 pEnd    :: (Stores st error, Eof st) => P st [error]
@@ -274,14 +253,147 @@ pSwitch split (P ph pf pr pl pe)    = P (\ k st1 ->  let (st2, back) = split st1
                                         pl
                                         pe 
 
+-- * Maintaining Progress Information
+-- | The data type @`Steps`@ is the core data type around which the parsers are constructed.
+--   It is a describes a tree structure of streams containing (in an interleaved way) both the online result of the parsing process,
+--   and progress information. Recognising an input token should correspond to a certain amount of @`Progress`@, 
+--   which tells how much of the input state was consumed. 
+--   The @`Progress`@ is used to implement the breadth-first search process, in which alternatives are
+--   examined in a more-or-less synchonised way. The meaning of the various @`Step`@ constructors is as follows:
+--
+--   [@`Step`@] A token was succesfully recognised, and as a result the input was 'advanced' by the distance  @`Progress`@
+--
+--   [@`Apply`@] The type of value represented by the `Steps` changes by applying the function parameter.
+--
+--   [@`Fail`@] A correcting step has to made to the input; the first parameter contains information about what was expected in the input, 
+--   and the second parameter describes the various corrected alternatives, each with an associated `Cost`
+--
+--   [@`Micro`@] A small cost is inserted in the sequence, which is used to disambiguate. Use with care!
+--
+--   The last two alternatives play a role in recognising ambigous non-terminals. For a full description see the technical report referred to from the README file..
 
--- ** A more efficient version for @`<$`@ from the module @`Control.Applicative`@
--- | In the new module `Control.Applicative' the operator `<$` is still hard coded. 
---   We hide this import and provide an implementation using a class, which can be redfined when needed.
+type Cost = Int
+type Progress = Int
+type Strings = [String]
 
-instance ExtApplicative (P st)  where
-  f                <$   (P _  _  qr ql qe)   
-    = P ( qr . ($f)) (\ k st -> push f (qr k st)) qr  ql  (case qe of Nothing -> Nothing; _ -> Just f)
+data  Steps   a  where
+      Step   ::                 Progress       ->  Steps a                             -> Steps   a
+      Apply  ::  forall a b.    (b -> a)       ->  Steps   b                           -> Steps   a
+      Fail   ::                 Strings        ->  [Strings   ->  (Cost , Steps   a)]  -> Steps   a
+      Micro   ::                 Cost           ->  Steps a                             -> Steps   a
+      End_h  ::                 ([a] , [a]     ->  Steps r)    ->  Steps   (a,r)       -> Steps   (a, r)
+      End_f  ::                 [Steps   a]    ->  Steps   a                           -> Steps   a
+
+succeedAlways = let steps = Step 0 steps in steps
+failAlways  =  Fail [] [const (0, failAlways)]
+noAlts      =  Fail [] []
+
+has_success (Step _ _) = True
+has_success _        = False
+
+-- ! @`eval`@ removes the progress information from a sequence of steps, and constructs the value contained in it. 
+eval :: Steps   a      ->  a
+eval (Step  _    l)     =   eval l
+eval (Micro  _    l)     =   eval l
+eval (Fail   ss  ls  )  =   trace' ("expecting: " ++ show ss) (eval (getCheapest 3 (map ($ss) ls))) 
+eval (Apply  f   l   )  =   f (eval l)
+eval (End_f   _  _   )  =   error "dangling End_f constructor"
+eval (End_h   _  _   )  =   error "dangling End_h constructor"
+
+push        :: v -> Steps   r -> Steps   (v, r)
+push v      =  Apply (\ r -> (v, r))
+apply       :: Steps (b -> a, (b, r)) -> Steps (a, r)
+apply       =  Apply (\(b2a, ~(b, r)) -> (b2a b, r)) 
+pushapply   :: (b -> a) -> Steps (b, r) -> Steps (a, r)
+pushapply f = Apply (\ (b, r) -> (f b, r)) 
+
+norm ::  Steps a ->  Steps   a
+norm     (Apply f (Step   p    l  ))   =   Step  p (Apply f l)
+norm     (Apply f (Micro  c    l  ))   =   Micro c (Apply f l)
+norm     (Apply f (Fail   ss   ls ))   =   Fail ss (applyFail (Apply f) ls)
+norm     (Apply f (Apply  g    l  ))   =   norm (Apply (f.g) l)
+norm     (Apply f (End_f  ss   l  ))   =   End_f (map (Apply f) ss) (Apply f l)
+norm     (Apply f (End_h  _    _  ))   =   error "Apply before End_h"
+norm     steps                         =   steps
+
+applyFail f  = map (\ g -> \ ex -> let (c, l) =  g ex in  (c, f l))
+
+best :: Steps   a -> Steps   a -> Steps   a
+x `best` y =   norm x `best'` norm y
+
+best' :: Steps   b -> Steps   b -> Steps   b
+Fail  sl  ll     `best'`  Fail  sr rr     =   Fail (sl ++ sr) (ll++rr)
+Fail  _   _      `best'`  r               =   r
+l                `best'`  Fail  _  _      =   l
+Step  n   l      `best'`  Step  m  r
+    | n == m                              =   Step n (l `best'` r)     
+    | n < m                               =   Step n (l  `best'`  Step (m - n)  r)
+    | n > m                               =   Step m (Step (n - m)  l  `best'` r)
+ls@(Step _  _)    `best'`  Micro _ _        =  ls
+Micro _    _      `best'`  rs@(Step  _ _)   =  rs
+ls@(Micro i l)    `best'`  rs@(Micro j r)  
+    | i == j                               =   Micro i (l `best'` r)
+    | i < j                                =   ls
+    | i > j                                =   rs
+End_f  as  l            `best'`  End_f  bs r          =   End_f (as++bs)  (l `best` r)
+End_f  as  l            `best'`  r                    =   End_f as        (l `best` r)
+l                       `best'`  End_f  bs r          =   End_f bs        (l `best` r)
+End_h  (as, k_h_st)  l  `best'`  End_h  (bs, _) r     =   End_h (as++bs, k_h_st)  (l `best` r)
+End_h  as  l            `best'`  r                    =   End_h as (l `best` r)
+l                       `best'`  End_h  bs r          =   End_h bs (l `best` r)
+l                       `best'`  r                    =   l `best` r 
+
+-- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+-- %%%%%%%%%%%%% getCheapest  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+-- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+getCheapest :: Int -> [(Int, Steps a)] -> Steps a 
+getCheapest _ [] = error "no correcting alternative found"
+getCheapest n l  =  snd $  foldr (\(w,ll) btf@(c, l)
+                               ->    if w < c   -- c is the best cost estimate thus far, and w total costs on this path
+                                     then let new = (traverse n ll w c) 
+                                          in if new < c then (new, ll) else btf
+                                     else btf 
+                               )   (maxBound, error "getCheapest") l
+
+
+traverse :: Int -> Steps a -> Int -> Int  -> Int 
+traverse 0  _                =  trace' ("traverse " ++ show 0 ++ "\n") (\ v c ->  v)
+traverse n (Step _   l)      =  trace' ("traverse Step   " ++ show n ++ "\n") (traverse (n -  1 ) l)
+traverse n (Micro _  l)      =  trace' ("traverse Micro  " ++ show n ++ "\n") (traverse n         l)
+traverse n (Apply _  l)      =  trace' ("traverse Apply  " ++ show n ++ "\n") (traverse n         l)
+traverse n (Fail m m2ls)     =  trace' ("traverse Fail   " ++ show n ++ "\n") (\ v c ->  foldr (\ (w,l) c' -> if v + w < c' then traverse (n -  1 ) l (v+w) c'
+                                                                                                           else c'
+                                                                                            ) c (map ($m) m2ls)
+                                                                    )
+traverse n (End_h ((a, lf))    r)  =  traverse n (lf a `best` removeEnd_h r)
+traverse n (End_f (l      :_)  r)  =  traverse n (l `best` r) 
+
+-- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+-- %%%%%%%%%%%%% Handling ambiguous paths             %%%%%%%%%%%%%%%%%%%
+-- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+removeEnd_h     :: Steps (a, r) -> Steps r
+removeEnd_h (Fail  m ls             )  =   Fail m (applyFail removeEnd_h ls)
+removeEnd_h (Step  ps l             )  =   Step  ps (removeEnd_h l)
+removeEnd_h (Apply f l              )  =   error "not in history parsers"
+removeEnd_h (Micro c l              )  =   Micro c (removeEnd_h l)
+removeEnd_h (End_h  (as, k_st  ) r  )  =   k_st as `best` removeEnd_h r 
+
+removeEnd_f      :: Steps r -> Steps [r]
+removeEnd_f (Fail m ls)        =   Fail m (applyFail removeEnd_f ls)
+removeEnd_f (Step ps l)        =   Step ps (removeEnd_f l)
+removeEnd_f (Apply f l)        =   Apply (map' f) (removeEnd_f l) 
+                                   where map' f ~(x:xs)  =  f x : map f xs
+removeEnd_f (Micro c l      )  =   Micro c (removeEnd_f l)
+removeEnd_f (End_f(s:ss) r)    =   Apply  (:(map  eval ss)) s 
+                                                 `best`
+                                          removeEnd_f r
+-- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+-- %%%%%%%%%%%%% Auxiliary Functions and Types        %%%%%%%%%%%%%%%%%%%
+-- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+trace' v m = m 
 
 -- * Auxiliary functions and types
 -- ** Checking for non-sensical combinations: @`must_be_non_empty`@ and @`must_be_non_empties`@
