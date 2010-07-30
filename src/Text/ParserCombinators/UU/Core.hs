@@ -35,7 +35,13 @@ class Eof state where
        eof          ::  state   -> Bool
        deleteAtEnd  ::  state   -> Maybe (Cost, state)
 
+-- ** `Location` 
+-- | The input state may contain a location which can be used in error messages. Since we do not want to fix our input to be just a @String@ we provide an interface
+--   which can be used to advance the location by passing its information in the function splitState
 
+class loc `IsLocationUpdatedBy` a where
+    advance::loc -> a -> loc
+     
 
 -- * The type  describing parsers: @`P`@
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -93,6 +99,28 @@ instance   Alternative (P   state) where
                              ( \  k inp  ->  noAlts)
                              Infinite
                              Nothing
+
+-- ** An alternative for the Alternative, which is greedy:  @`<<|>`@
+-- | `<<|>` is the greedy version of `<|>`. If its left hand side parser can make some progress that alternative is comitted. Can be used to make parsers faster, and even
+--   get a complete Parsec equivalent behaviour, with all its (dis)advantages. use with are!
+
+P ph pf pr pl pe <<|> P qh qf qr ql qe 
+    = let (rl, b) = nat_min pl ql
+          bestx = if b then flip best else best
+      in   P ( \ k st  -> let left = norm (ph k st) 
+                          in if has_success left then left
+                             else left `bestx` norm (qh k st))
+             ( \ k st  ->  let left = norm (pf k st) 
+                           in if has_success left then left
+                              else left `bestx` norm (qf k st))
+             ( \ k st  ->  let left = norm (pr k st) 
+                           in if has_success left then left
+                              else left `bestx` norm (qr k st))
+             rl
+             (case (pe, qe)  of
+                 (Nothing, _      ) -> qe
+                 (_      , Nothing) -> pe
+                 (_      , _      ) -> error "ambiguous parser because two sides of choice can be empty")
 
 -- ** Parsers can recognise single tokens:  @`pSym`@ and  @`pSymExt`@
 -- | Many parsing libraries do not make a distinction between the terminal symbols of the language recognised 
@@ -152,27 +180,6 @@ P  ph  pf  pr  pl pe <?> label = P ( \ k inp -> replaceExpected  ( ph k inp))
                                  replaceExpected others     = others
 
 
--- ** An alternative for the Alternative, which is greedy:  @`<<|>`@
--- | `<<|>` is the greedy version of `<|>`. If its left hand side parser can make some progress that alternative is comitted. Can be used to make parsers faster, and even
---   get a complete Parsec equivalent behaviour, with all its (dis)advantages. use with are!
-
-P ph pf pr pl pe <<|> P qh qf qr ql qe 
-    = let (rl, b) = nat_min pl ql
-          bestx = if b then flip best else best
-      in   P ( \ k st  -> let left = norm (ph k st) 
-                          in if has_success left then left
-                             else left `bestx` norm (qh k st))
-             ( \ k st  ->  let left = norm (pf k st) 
-                           in if has_success left then left
-                              else left `bestx` norm (qf k st))
-             ( \ k st  ->  let left = norm (pr k st) 
-                           in if has_success left then left
-                              else left `bestx` norm (qr k st))
-             rl
-             (case (pe, qe)  of
-                 (Nothing, _      ) -> qe
-                 (_      , Nothing) -> pe
-                 (_      , _      ) -> error "ambiguous parser because two sides of choice can be empty")
 
 -- ** Parsers can be disambiguated using micro-steps:  @`micro`@
 -- | `micro` inserts a `Cost` step into the sequence representing the progress the parser is making; for its use see `Text.ParserCombinators.UU.Examples` 
@@ -208,7 +215,21 @@ pErrors = P ( \ k inp -> let (errs, inp') = getErrors inp in k    errs    inp' )
             ( \ k inp -> let (errs, inp') = getErrors inp in push errs (k inp'))
             ( \ k inp -> let (errs, inp') = getErrors inp in            k inp' )
             Zero       -- this parser does not consume input
-            (Just [])  -- the errors consumed cannot be determined statically! Hence we assume none.
+            (Just (error "pErrors cannot occur in lhs of bind"))  -- the errors consumed cannot be determined statically! 
+
+-- ** The current position  can be retreived from the state: @`pPos`@
+-- | `pPos` retreives the correcting steps made since the last time the function was called. The result can, 
+--   using a monad, be used to control how to--    proceed with the parsing process.
+
+class state `HasPosition`  pos | state -> pos where
+  getPos    ::  state   -> pos
+
+pPos :: HasPosition st pos => P st pos
+pPos = P ( \ k inp -> let pos = getPos inp in k    pos    inp )
+         ( \ k inp -> let pos = getPos inp in push pos (k inp))
+         ( \ k inp -> let pos = getPos inp in           k inp )
+         Zero       -- this parser does not consume input
+         (Just (error "pPos cannot occur in lhs of bind"))  -- the errors consumed cannot be determined statically! 
 
 -- ** Starting and finalising the parsing process: @`pEnd`@ and @`parse`@
 -- | The function `pEnd` should be called at the end of the parsing process. It deletes any unsonsumed input, and reports its preence as an eror.

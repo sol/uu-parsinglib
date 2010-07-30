@@ -1,4 +1,18 @@
 -- | This module just contains the CHANGELOG
+--   Version 2.5.0
+--   
+--       * generalised over the position in the input; now it is easy to maintain e.g. (line,column) info as shown in the "Examples.hs" file
+--
+--       * added needed instances for @String@ s as input in "BasicInstances.hs"
+--     
+--       * fixed a bug in pMunch where a Step was inserted with 0 progress, leading to infinite insertions 
+--
+--       * added Haddock beautifications
+--
+--  Version 2.4.5
+--       
+--       * added the function @`pPos`@ for retreiving the current input position
+--       
 --  Version 2.4.4
 --       
 --       * solved a mistake which had crept in in the greedy choice

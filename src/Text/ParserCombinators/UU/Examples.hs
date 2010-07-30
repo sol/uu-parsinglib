@@ -1,4 +1,8 @@
 {-# OPTIONS_HADDOCK  ignore-exports #-}
+{-# LANGUAGE  FlexibleInstances,
+              TypeSynonymInstances,
+              MultiParamTypeClasses  #-}
+
 module Text.ParserCombinators.UU.Examples where
 import Char
 import Text.ParserCombinators.UU.Core
@@ -7,13 +11,9 @@ import Text.ParserCombinators.UU.BasicInstances
 import Text.ParserCombinators.UU.Merge
 import Control.Monad
 
--- |We start out by defining the type of parser we want; by specifying the type of the state we resolve a lot of overloading
-
-type Parser a = P (Str Char) a 
-
 -- | The fuction @`run`@ runs the parser and shows both the result, and the correcting steps which were taken during the parsing process.
-run :: Show t =>  P (Str Char) t -> String -> IO ()
-run p inp = do  let r@(a, errors) =  parse ( (,) <$> p <*> pEnd) (listToStr inp)
+run :: Show t =>  Parser t -> String -> IO ()
+run p inp = do  let r@(a, errors) =  parse ( (,) <$> p <*> pEnd) (listToStr inp (0,0))
                 putStrLn "--"
                 putStrLn ("-- > Result: " ++ show a)
                 if null errors then  return ()
@@ -245,7 +245,7 @@ idents = pList1 ident
 
 pKey keyw = pToken keyw `micro` 1 <* spaces
 spaces :: Parser String
-spaces = pMunch (==' ')
+spaces = pMunch (`elem` " \n")
  
 takes_second_alt =   pList ident 
               <|> (\ c t e -> ["IfThenElse"] ++  c   ++  t  ++  e) 

@@ -5,7 +5,8 @@
               FlexibleInstances, 
               FlexibleContexts, 
               UndecidableInstances,
-              NoMonomorphismRestriction#-}
+              NoMonomorphismRestriction,
+              TypeSynonymInstances #-}
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%% Some Instances        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -31,65 +32,82 @@ show_expecting [a]    = " expecting " ++ a
 show_expecting (a:as) = " expecting one of [" ++ a ++ concat (map (", " ++) as) ++ "]"
 show_expecting []     = " expecting nothing"
 
-data Str     t    = Str   {  input    :: [t]
-                          ,  msgs     :: [Error Int ]
-                          ,  pos      :: !Int
-                          ,  deleteOk :: !Bool}
+data Str     t  loc  = Str   {  input    :: [t]
+                             ,  msgs     :: [Error loc ]
+                             ,  pos      :: loc
+                             ,  deleteOk :: !Bool}
 
-listToStr ls = Str   ls  []  0  True
+listToStr ls initloc = Str   ls  []  initloc  True
 
-instance (Show a) => Provides  (Str  a)  (a -> Bool, String, a)  a where
+type Parser a = P (Str Char (Int,Int)) a 
+instance IsLocationUpdatedBy (Int,Int) Char where
+   advance (line,pos) c = case c of
+                          '\n' ->  (line+1, 0) 
+                          '\t' ->  (line  , pos + 8 - (pos-1) `mod` 8)
+                          _    ->  (line  , pos + 1)
+
+instance IsLocationUpdatedBy (Int,Int) String where
+   advance  = foldl advance 
+
+instance (Show a,  loc `IsLocationUpdatedBy` a) => Provides  (Str  a loc)  (a -> Bool, String, a)  a where
        splitState (p, msg, a) k (Str  tts   msgs pos  del_ok) 
           = let ins exp =       (5, k a (Str tts (msgs ++ [Inserted (show a)  pos  exp]) pos  False))
                 del exp =       (5, splitState (p,msg, a) 
                                     k
-                                    (Str (tail tts)  (msgs ++ [Deleted  (show(head tts))  pos  exp]) (pos+1) True ))
+                                    (Str (tail tts) 
+                                         (msgs ++ [Deleted  (show(head tts))  pos  exp]) 
+                                         (advance pos (head tts))
+                                         True ))
             in case tts of
                (t:ts)  ->  if p t 
-                           then  Step 1 (k t (Str ts msgs (pos + 1) True))
+                           then  Step 1 (k t (Str ts msgs (advance pos t) True))
                            else  Fail [msg] (ins: if del_ok then [del] else [])
                []      ->  Fail [msg] [ins]
 
-instance (Ord a, Show a) => Provides  (Str  a)  (a,a)  a where
+instance (Ord a, Show a, loc `IsLocationUpdatedBy`  a) => Provides  (Str  a loc)  (a,a)  a where
        splitState a@(low, high) = splitState (\ t -> low <= t && t <= high, show low ++ ".." ++ show high, low)
 
-instance (Eq a, Show a) => Provides  (Str  a)  a  a where
+instance (Eq a, Show a, loc `IsLocationUpdatedBy`  a) => Provides  (Str  a loc)  a  a where
        splitState a  = splitState ((==a), show a, a) 
 
-instance Show a => Eof (Str a) where
+instance Show a => Eof (Str a loc) where
        eof (Str  i        _    _    _    )                = null i
        deleteAtEnd (Str  (i:ii)   msgs pos ok    )        = Just (5, Str ii (msgs ++ [DeletedAtEnd (show i)]) pos ok)
        deleteAtEnd _                                      = Nothing
 
 
-instance  Stores (Str a) (Error Int) where
-       getErrors   (Str  inp      msgs pos ok    )        = (msgs, Str inp [] pos ok)
+instance  Stores (Str a loc) (Error loc) where
+       getErrors   (Str  inp      msgs pos ok    )     = (msgs, Str inp [] pos ok)
+
+instance  HasPosition (Str a loc) loc where
+       getPos   (Str  inp      msgs pos ok    )        = pos
 
 -- pMunch
 
 data Munch a = Munch (a -> Bool)
 
-instance (Show a) => Provides (Str a) (Munch a) [a] where 
-       splitState (Munch p) k (Str tts msgs pos del_ok)
+instance (Show a, loc `IsLocationUpdatedBy` [a]) => Provides (Str a loc) (Munch a) [a] where 
+       splitState (Munch p) k inp@(Str tts msgs pos del_ok)
           =    let (munched, rest) = span p tts
                    l               = length munched
-               in Step l (k munched (Str rest msgs (pos+l)  (l>0 || del_ok)))
+               in if l > 0 then Step l (k munched (Str rest msgs (advance pos munched)  (l>0 || del_ok)))
+                           else k [] inp
 
 pMunch :: (Provides st (Munch a) [a]) => (a -> Bool) -> P st [a]
 pMunch p = pSymExt Zero (Just []) (Munch p)
 
 data Token a = Token [a] Int -- the Int value represents the cost for inserting such a token
 
-instance (Show a, Eq a) => Provides (Str a) (Token a) [a] where 
+instance (Show a, Eq a, loc `IsLocationUpdatedBy` [a]) => Provides (Str a loc) (Token a) [a] where 
   splitState tok@(Token  as cost) k (Str tts msgs pos del_ok)
    =  let l = length as
           msg = show as 
       in  case stripPrefix as tts of
           Nothing  ->  let ins exp =  (cost, k as             (Str tts         (msgs ++ [Inserted msg               pos  exp])   pos    False))
-                           del exp =  (5,    splitState tok k (Str (tail tts)  (msgs ++ [Deleted  (show(head tts))  pos  exp])  (pos+1) True ))
+                           del exp =  (5,    splitState tok k (Str (tail tts)  (msgs ++ [Deleted  (show(head tts))  pos  exp])  (advance pos [(head tts)]) True ))
                        in if null tts then  Fail [msg] [ins]
                                       else  Fail [msg] (ins: if del_ok then [del] else [])
-          Just rest -> Step l (k as (Str rest msgs (pos+l) True))
+          Just rest -> Step l (k as (Str rest msgs (advance pos as) True))
 
 pToken     as   =   pTokenCost as 5
 pTokenCost as c =   if null as then error "call to pToken with empty token"
