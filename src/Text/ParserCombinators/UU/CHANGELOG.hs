@@ -1,4 +1,17 @@
 -- | This module just contains the CHANGELOG
+--
+--   Version 2.5.1.1
+-- 
+--       * Now with the correct Changelog
+--
+--  Version 2.5.1 
+--
+--       * added the Permutation parsers from the old uulib
+--
+--       * extended the abstract interpretation so more soundness checks can be done statically
+--
+--       * everything seems to work; in case of problems please report and go back to 2.5.0
+--
 --   Version 2.5.0
 --   
 --       * generalised over the position in the input; now it is easy to maintain e.g. (line,column) info as shown in the "Examples.hs" file

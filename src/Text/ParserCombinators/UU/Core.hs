@@ -1,4 +1,3 @@
- 
 {-# LANGUAGE  RankNTypes, 
               GADTs,
               MultiParamTypeClasses,
@@ -41,127 +40,192 @@ class Eof state where
 
 class loc `IsLocationUpdatedBy` a where
     advance::loc -> a -> loc
+
+--  ** An extension to @`Alternative`@ which indicates a biased choice
+-- | In order to be able to describe greedy parsers we introduce an extra operator, whch indicates a biased choice
+class ExtAlternative p where
+  (<<|>) :: p a -> p a -> p a
      
 
--- * The type  describing parsers: @`P`@
+-- * The  triples containg a  history, a future parser and a recogniser: @`T`@
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--- %%%%%%%%%%%%% Parsers     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+-- %%%%%%%%%%%%% Triples     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+-- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+-- actual parsers
+data T st a  = T  (forall r . (a  -> st -> Steps r)  -> st -> Steps       r  ) --  history parser
+                  (forall r . (      st -> Steps r)  -> st -> Steps   (a, r) ) --  future parser
+                  (forall r . (      st -> Steps r)  -> st -> Steps       r  ) --  recogniser
+
+instance Functor (T st) where
+  fmap f (T ph pf pr) = T  ( \  k -> ph ( k .f ))
+                           ( \  k ->  pushapply f . pf k) -- pure f <*> pf
+                           pr
+  f <$ (T _ _ pr)     = T  ( pr . ($f)) 
+                           ( \ k st -> push f ( pr k st)) 
+                           pr
+
+-- ** Triples are Applicative:  @`<*>`@,  @`<*`@,  @`*>`@ and  @`pure`@
+instance   Applicative (T  state) where
+  T ph pf pr  <*> ~(T qh qf qr)  =  T ( \  k -> ph (\ pr -> qh (\ qr -> k (pr qr))))
+                                      ((apply .) . (pf .qf))
+                                       ( pr . qr)
+  T ph pf pr  <*  ~(T _  _  qr)   = T ( ph. (qr.))  (pf. qr)   (pr . qr)
+  T _  _  pr  *>  ~(T qh qf qr )  = T ( pr . qh  )  (pr. qf)    (pr . qr)            
+  pure a                          = T ($a) ((push a).) id 
+
+instance   Alternative (T  state) where 
+  T ph pf pr  <|> T qh qf qr  =   T (\  k inp  -> ph k inp `best` qh k inp)
+                                    (\  k inp  -> pf k inp `best` qf k inp)
+                                    (\  k inp  -> pr k inp `best` qr k inp)
+  empty                =  T  ( \  k inp  ->  noAlts) ( \  k inp  ->  noAlts) ( \  k inp  ->  noAlts)
+
+-- instance ExtAlternative (T st) where 
+-- unfortunatelythis is not possible since we have to make the choice for swapping elsewhere
+
+choose:: (forall a . Steps a -> Steps a -> Steps a) -> T st a -> T st a -> T st a
+choose best (T ph pf pr)  (T qh qf qr) = 
+    T  (\ k st -> let left  = norm (ph k st)
+                  in if has_success left then left else left `best` qh k st)
+       (\ k st -> let left  = norm (pf k st)
+                  in if has_success left then left else left `best` qf k st) 
+       (\ k st -> let left  = norm (pr k st)
+                  in if has_success left then left else left `best` qr k st)
+            
+
+instance ExtAlternative Maybe where
+  Nothing <<|> r        = r
+  l       <<|> Nothing  = l 
+  l       <<|> r        = l -- choosing the high priority alternative ? is this the right choice?
+
+
+-- * The  descriptor @`P`@ of a parser, including the tupled parser corresponding to this descriptor
+-- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+-- %%%%%%%%%%%%% Parser Descriptors    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-data  P   st  a =  P  (forall r . (a  -> st -> Steps r)  -> st -> Steps       r  ) --  history parser
-                      (forall r . (      st -> Steps r)  -> st -> Steps   (a, r) ) --  future parser
-                      (forall r . (      st -> Steps r)  -> st -> Steps       r  ) --  recogniser
-                      Nat                                                          --  minimal length
-                      (Maybe a)                                                    --  possibly empty with value     
+data  P   st  a =  P         (T  st a) --  actual parsers
+                      (Maybe (T st a)) --  non-empty parsers; Nothing if  they are absent
+                      Nat              --  minimal length
+                      (Maybe a)        --  possibly empty with value 
+
+getOneP (P _ _  Zero _)    = error "The element is a special parser which cannot be combined"
+getOneP (P _ Nothing l _ )    = Nothing
+getOneP (P _ onep    l _ )    = Just( P (mkParser onep Nothing) onep    l Nothing)
+getZeroP (P _ _ l Nothing) =  Nothing
+getZeroP (P _ _ l pe)      =  Just ( P (mkParser Nothing pe)   Nothing l pe)
+
+mkParser Nothing Nothing    = empty
+mkParser (Just nt) Nothing  = nt
+mkParser Nothing   (Just a) = pure a
+mkParser (Just nt) (Just a) = nt <|> pure a
 
 -- ** Parsers are functors:  @`fmap`@
 instance   Functor (P  state) where 
-  fmap f   (P   ph pf pr l me)   =  P  ( \  k -> ph ( k .f ))
-                                       ( \  k ->  pushapply f . pf k) -- pure f <*> pf
-                                       (pr) 
-                                       l
-                                       (fmap f me)
-  f <$   (P _  _  qr ql qe)   
-    = P ( qr . ($f)) (\ k st -> push f (qr k st)) qr  ql  (case qe of Nothing -> Nothing; _ -> Just f)
+  fmap f   (P  ap np l me)   =  let nnp =  fmap (fmap     f)  np
+                                    nep =  f <$> me                                    
+                                in  P  (mkParser nnp nep) nnp  l nep
+  f <$     (P  ap np l me)   =  let nnp =  fmap (f <$)        np
+                                    nep =  f <$   me                                    
+                                in  P  (mkParser nnp nep) nnp  l nep
 
 
 -- ** Parsers are Applicative:  @`<*>`@,  @`<*`@,  @`*>`@ and  @`pure`@
 instance   Applicative (P  state) where
-  P ph pf pr pl pe <*> ~(P qh qf qr ql qe)  =  P  ( \  k -> ph (\ pr -> qh (\ qr -> k (pr qr))))
-                                                  ((apply .) . (pf .qf))
-                                                  ( pr . qr)
-                                                  (nat_add pl ql)
-                                                  (pe <*> qe)
-  P ph pf pr pl pe <*  ~(P _  _  qr ql qe)   = P  ( ph. (qr.))  (pf. qr)   (pr . qr)
-                                                  (nat_add pl ql) 
-                                                  (case qe of Nothing -> Nothing ; _ -> pe)
-  P _  _  pr pl pe *>  ~(P qh qf qr ql qe)   = P ( pr . qh  )  (pr. qf)    (pr . qr)           
-                                                 (nat_add pl ql) (case pe of Nothing -> Nothing ; _ -> qe) 
-  pure a                                     =  P  ($a) ((push a).) id Zero (Just a)
+  P ap np  pl pe <*> ~(P aq nq  ql qe)  =  let nnp = do {npp <- np ;  return (npp <*> aq)}
+                                               nep =  (pe <*> qe)
+                                           in  P  (mkParser nnp nep) nnp (nat_add pl ql) nep
+  P ap np pl pe  <*  ~(P aq nq  ql qe)   = let nnp = do {npp <- np ;  return (npp <* aq)}
+                                               nep =  (pe <* qe)
+                                           in  P  (mkParser nnp nep) nnp (nat_add pl ql) nep
+  P ap np  pl pe  *>  ~(P aq nq ql qe)   = let nnp = do {npp <- np ;  return (npp *> aq)}
+                                               nep =  (pe *> qe)
+                                           in  P  (mkParser nnp nep) nnp (nat_add pl ql) nep 
+  pure a                                 = P (pure a) Nothing Zero (Just a)
 
 
 -- ** Parsers are Alternative:  @`<|>`@ and  @`empty`@ 
 instance   Alternative (P   state) where 
-  P ph pf pr pl pe <|> P qh qf qr ql qe 
+  P ap np  pl pe <|> P aq nq ql qe 
     =  let (rl, b) = nat_min pl ql
-           bestx :: Steps a -> Steps a -> Steps a
-           bestx = if b then flip best else best 
-       in    P (\  k inp  -> ph k inp `bestx` qh k inp)
-               (\  k inp  -> pf k inp `bestx` qf k inp)
-               (\  k inp  -> pr k inp `bestx` qr k inp)
-               rl
-               (case (pe, qe)  of
+           Nothing `alt` q  = q
+           p       `alt` Nothing = p
+           Just p  `alt` Just q  = Just (p <|>q)
+       in  let nnp =  (if b then (nq `alt` np) else (np `alt` nq))
+               nep =   (case (pe, qe)  of
                  (Nothing, _      ) -> qe
                  (_      , Nothing) -> pe
                  (_      , _      ) -> error "ambiguous parser because two sides of choice can be empty")
-  empty                =  P  ( \  k inp  ->  noAlts)
-                             ( \  k inp  ->  noAlts)
-                             ( \  k inp  ->  noAlts)
-                             Infinite
-                             Nothing
+           in  P (mkParser nnp nep) nnp rl nep
+  empty  =  P  empty empty  Infinite Nothing
 
 -- ** An alternative for the Alternative, which is greedy:  @`<<|>`@
--- | `<<|>` is the greedy version of `<|>`. If its left hand side parser can make some progress that alternative is comitted. Can be used to make parsers faster, and even
+-- | `<<|>` is the greedy version of `<|>`. If its left hand side parser can make some progress that alternative is committed. Can be used to make parsers faster, and even
 --   get a complete Parsec equivalent behaviour, with all its (dis)advantages. use with are!
 
-P ph pf pr pl pe <<|> P qh qf qr ql qe 
+instance ExtAlternative (P st) where
+  P ap np pl pe <<|> P aq nq ql qe 
     = let (rl, b) = nat_min pl ql
           bestx = if b then flip best else best
-      in   P ( \ k st  -> let left = norm (ph k st) 
-                          in if has_success left then left
-                             else left `bestx` norm (qh k st))
-             ( \ k st  ->  let left = norm (pf k st) 
-                           in if has_success left then left
-                              else left `bestx` norm (qf k st))
-             ( \ k st  ->  let left = norm (pr k st) 
-                           in if has_success left then left
-                              else left `bestx` norm (qr k st))
+      in   P (choose bestx ap aq )
+             (maybe np (\nqq -> maybe nq (\npp -> return( choose bestx npp nqq)) np) nq)
              rl
-             (case (pe, qe)  of
-                 (Nothing, _      ) -> qe
-                 (_      , Nothing) -> pe
-                 (_      , _      ) -> error "ambiguous parser because two sides of choice can be empty")
+             (pe <|> qe)
 
 -- ** Parsers can recognise single tokens:  @`pSym`@ and  @`pSymExt`@
--- | Many parsing libraries do not make a distinction between the terminal symbols of the language recognised 
+--   Many parsing libraries do not make a distinction between the terminal symbols of the language recognised 
 --   and the tokens actually constructed from the  input. 
 --   This happens e.g. if we want to recognise an integer or an identifier: 
 --   we are also interested in which integer occurred in the input, or which identifier. 
---   The function `pSymExt` takes as argument a value of some type `symbol', and returns a value of type `token'. The parser will in general depend on some 
+--   The function `pSymExt` takes as argument a value of some type `symbol', and returns a value of type `token'.
+--  The parser will in general depend on some 
 --   state which is maintained holding the input. The functional dependency fixes the `token` type, based on the `symbol` type and the type of the parser `p`.
---   Since `pSymExt' is overloaded both the type and the value of symbol determine how to decompose the input in a `token` and the remaining input.
---   `pSymExt`  takes two extra parameters: one describing the minimal numer of tokens recognised, 
+
+-- | Since `pSymExt' is overloaded both the type and the value of symbol determine how to decompose the input in a `token` 
+--   and the remaining input.
+--   `pSymExt` takes two extra parameters: one describing the minimal number of tokens recognised, 
 --   and the second whether the symbol can recognise the empty string and the value which is to be returned in that case
   
 pSymExt ::   (Provides state symbol token) => Nat -> Maybe token -> symbol -> P state token
+pSymExt l e a  = P t (Just t) l e
+                 where t = T ( \ k inp -> splitState a k inp)
+                             ( \ k inp -> splitState a (\ t inp' -> push t (k inp')) inp)
+                             ( \ k inp -> splitState a (\ _ inp' -> k inp') inp)
 
-  
-pSymExt l e a  = P ( \ k inp -> splitState a k inp)
-                   ( \ k inp -> splitState a (\ t inp' -> push t (k inp')) inp)
-                   ( \ k inp -> splitState a (\ _ inp' -> k inp') inp)
-                   l
-                   e
--- | @`pSym`@ covers the most common case of recognsiing a symbol: a single token is removed form the input, and it cannot recognise the empty string
+-- | @`pSym`@ covers the most common case of recognsiing a symbol: a single token is removed form the input, 
+-- and it cannot recognise the empty string
 pSym    ::   (Provides state symbol token) =>                       symbol -> P state token
 pSym  s   = pSymExt (Succ Zero) Nothing s 
 
 -- ** Parsers are Monads:  @`>>=`@ and  @`return`@
+-- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+-- %%%%%%%%%%%%% Monads      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+-- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-unParser_h (P  h   _  _  _ _)  =  h
-unParser_f (P  _   f  _  _ _)  =  f
-unParser_r (P  _   _  r  _ _)  =  r
+unParser_h (P (T  h   _  _ ) _ _ _ )  =  h
+unParser_f (P (T  _   f  _ ) _ _ _ )  =  f
+unParser_r (P (T  _   _  r ) _ _ _ )  =  r
           
-
+-- pas op de P moet aan de buitenkant !!
 instance  Monad (P st) where
-       P  ph pf pr pl pe >>=  a2q = 
-                P  (  \k -> ph (\ a -> unParser_h (a2q a) k))
-                   (  \k -> ph (\ a -> unParser_f (a2q a) k))
-                   (  \k -> ph (\ a -> unParser_r (a2q a) k))
-                   (nat_add pl (error "cannot compute minimal length of right hand side of monadic parser"))
-                   (case pe of
+       p@(P  ap np lp ep) >>=  a2q = 
+          (P newap newnp (nat_add lp (error "cannot compute minimal length of right hand side of monadic parser")) newep)
+          where (newep, newnp, newap) = case ep of
+                                 Nothing -> (Nothing, t, maybe empty id t) 
+                                 Just a  -> let  P aq nq lq eq = a2q a 
+                                            in  ( eq, combine t nq , t `alt` aq)
+                Nothing  `alt` q    = q
+                Just p   `alt` q    = p <|> q
+                t = case np of
                     Nothing -> Nothing
-                    Just a -> let (P _ _ _ _ a2qv) = a2q a in a2qv)
+                    Just (T h _ _  ) -> Just (T  (  \k -> h (\ a -> unParser_h (a2q a) k))
+                                                 (  \k -> h (\ a -> unParser_f (a2q a) k))
+                                                 (  \k -> h (\ a -> unParser_r (a2q a) k)))
+                combine Nothing     Nothing     = Nothing
+                combine l@(Just _ ) Nothing     =  l
+                combine Nothing     r@(Just _ ) =  r
+                combine (Just l)    (Just r)    = Just (l <|> r)
        return  = pure 
+
 
 -- * Additional useful combinators
 -- ** Controlling the text of error reporting:  @`<?>`@
@@ -171,38 +235,44 @@ instance  Monad (P st) where
 --   The @`<?>`@ combinator replaces this list of symbols by it's righ-hand side argument.
 
 (<?>) :: P state a -> String -> P state a
-P  ph  pf  pr  pl pe <?> label = P ( \ k inp -> replaceExpected  ( ph k inp))
-                                   ( \ k inp -> replaceExpected  ( pf k inp))
-                                   ( \ k inp -> replaceExpected  ( pr k inp))
-                                   pl
-                                   pe
-                           where replaceExpected (Fail _ c) = (Fail [label] c)
-                                 replaceExpected others     = others
+P  _  np  pl pe <?> label 
+  = let nnp = case np of
+              Nothing -> Nothing
+              Just ((T ph pf  pr)) -> Just(T ( \ k inp -> replaceExpected  ( ph k inp))
+                                             ( \ k inp -> replaceExpected  ( pf k inp))
+                                             ( \ k inp -> replaceExpected  ( pr k inp)))
+        replaceExpected (Fail _ c) = (Fail [label] c)
+        replaceExpected others     = others
+    in P (mkParser nnp pe) nnp pl pe
 
 
 
 -- ** Parsers can be disambiguated using micro-steps:  @`micro`@
 -- | `micro` inserts a `Cost` step into the sequence representing the progress the parser is making; for its use see `Text.ParserCombinators.UU.Examples` 
-P ph pf pr pl pe `micro` i = P ( \ k st -> ph (\ a st -> Micro i (k a st)) st)
-                               ( \ k st -> pf (Micro i .k) st)
-                               ( \ k st -> pr (Micro i .k) st)
-                               pl
-                               pe 
+P _  np  pl pe `micro` i  
+  = let nnp = case np of
+              Nothing -> Nothing
+              Just ((T ph pf  pr)) -> Just(T ( \ k st -> ph (\ a st -> Micro i (k a st)) st)
+                                             ( \ k st -> pf (Micro i .k) st)
+                                             ( \ k st -> pr (Micro i .k) st))
+    in P (mkParser nnp pe) nnp pl pe
 
 -- ** Dealing with (non-empty) Ambigous parsers: @`amb`@ 
 --   For the precise functionng of the combinators we refer to the technical report mentioned in the README file
 --   @`amb`@ converts an ambiguous parser into a parser which returns a list of possible recognitions.
 amb :: P st a -> P st [a]
+amb (P _  np  pl pe) 
+ = let  combinevalues  :: Steps [(a,r)] -> Steps ([a],r)
+        combinevalues lar  =   Apply (\ lar -> (map fst lar, snd (head lar))) lar
+        nnp = case np of
+              Nothing -> Nothing
+              Just ((T ph pf  pr)) -> Just(T ( \k     ->  removeEnd_h . ph (\ a st' -> End_h ([a], \ as -> k as st') noAlts))
+                                             ( \k inp ->  combinevalues . removeEnd_f $ pf (\st -> End_f [k st] noAlts) inp)
+                                             ( \k     ->  removeEnd_h . pr (\ st' -> End_h ([undefined], \ _ -> k  st') noAlts)))
+        nep = (fmap pure pe)
+    in  P (mkParser nnp nep) nnp pl nep
 
-amb (P ph pf pr pl pe) = P ( \k     ->  removeEnd_h . ph (\ a st' -> End_h ([a], \ as -> k as st') noAlts))
-                           ( \k inp ->  combinevalues . removeEnd_f $ pf (\st -> End_f [k st] noAlts) inp)
-                           ( \k     ->  removeEnd_h . pr (\ st' -> End_h ([undefined], \ _ -> k  st') noAlts))
-                           pl
-                           (fmap pure pe)
-                         where  combinevalues  :: Steps [(a,r)] -> Steps ([a],r)
-                                combinevalues lar           =   Apply (\ lar -> (map fst lar, snd (head lar))) lar
 
-       
 -- ** Parse errors can be retreived from the state: @`pErrors`@
 -- | `getErrors` retreives the correcting steps made since the last time the function was called. The result can, 
 --   using a monad, be used to control how to--    proceed with the parsing process.
@@ -211,11 +281,12 @@ class state `Stores`  error | state -> error where
   getErrors    ::  state   -> ([error], state)
 
 pErrors :: Stores st error => P st [error]
-pErrors = P ( \ k inp -> let (errs, inp') = getErrors inp in k    errs    inp' )
-            ( \ k inp -> let (errs, inp') = getErrors inp in push errs (k inp'))
-            ( \ k inp -> let (errs, inp') = getErrors inp in            k inp' )
-            Zero       -- this parser does not consume input
-            (Just (error "pErrors cannot occur in lhs of bind"))  -- the errors consumed cannot be determined statically! 
+pErrors = let nnp = Just (T ( \ k inp -> let (errs, inp') = getErrors inp in k    errs    inp' )
+                            ( \ k inp -> let (errs, inp') = getErrors inp in push errs (k inp'))
+                            ( \ k inp -> let (errs, inp') = getErrors inp in            k inp' ))
+              nep =  (Just (error "pErrors cannot occur in lhs of bind"))  -- the errors consumed cannot be determined statically!
+          in P (mkParser nnp nep) nnp Zero nep
+
 
 -- ** The current position  can be retreived from the state: @`pPos`@
 -- | `pPos` retreives the correcting steps made since the last time the function was called. The result can, 
@@ -225,54 +296,55 @@ class state `HasPosition`  pos | state -> pos where
   getPos    ::  state   -> pos
 
 pPos :: HasPosition st pos => P st pos
-pPos = P ( \ k inp -> let pos = getPos inp in k    pos    inp )
-         ( \ k inp -> let pos = getPos inp in push pos (k inp))
-         ( \ k inp -> let pos = getPos inp in           k inp )
-         Zero       -- this parser does not consume input
-         (Just (error "pPos cannot occur in lhs of bind"))  -- the errors consumed cannot be determined statically! 
+pPos =  let nnp = Just ( T ( \ k inp -> let pos = getPos inp in k    pos    inp )
+                       ( \ k inp -> let pos = getPos inp in push pos (k inp))
+                       ( \ k inp -> let pos = getPos inp in           k inp ))
+            nep =  Just (error "pPos cannot occur in lhs of bind")  -- the errors consumed cannot be determined statically!
+        in P (mkParser nnp nep) nnp Zero nep
+
 
 -- ** Starting and finalising the parsing process: @`pEnd`@ and @`parse`@
 -- | The function `pEnd` should be called at the end of the parsing process. It deletes any unsonsumed input, and reports its preence as an eror.
 
 pEnd    :: (Stores st error, Eof st) => P st [error]
-pEnd    = P ( \ k inp ->   let deleterest inp =  case deleteAtEnd inp of
-                                                    Nothing -> let (finalerrors, finalstate) = getErrors inp
-                                                               in k  finalerrors finalstate
-                                                    Just (i, inp') -> Fail []  [const (i,  deleterest inp')]
-                           in deleterest inp)
-            ( \ k   inp -> let deleterest inp =  case deleteAtEnd inp of
-                                                    Nothing -> let (finalerrors, finalstate) = getErrors inp
-                                                               in push finalerrors (k finalstate)
-                                                    Just (i, inp') -> Fail [] [const ((i, deleterest inp'))]
-                           in deleterest inp)
-            ( \ k   inp -> let deleterest inp =  case deleteAtEnd inp of
-                                                    Nothing -> let (finalerrors, finalstate) = getErrors inp
-                                                               in  (k finalstate)
-                                                    Just (i, inp') -> Fail [] [const (i, deleterest inp')]
-                           in deleterest inp)
-            Zero
-            (error "Unforeseen use of pEnd function; pEnd should only be used in function running the actual parser")
-
+pEnd    = let nnp = Just ( T ( \ k inp ->   let deleterest inp =  case deleteAtEnd inp of
+                                                  Nothing -> let (finalerrors, finalstate) = getErrors inp
+                                                             in k  finalerrors finalstate
+                                                  Just (i, inp') -> Fail []  [const (i,  deleterest inp')]
+                                            in deleterest inp)
+                             ( \ k   inp -> let deleterest inp =  case deleteAtEnd inp of
+                                                  Nothing -> let (finalerrors, finalstate) = getErrors inp
+                                                             in push finalerrors (k finalstate)
+                                                  Just (i, inp') -> Fail [] [const ((i, deleterest inp'))]
+                                            in deleterest inp)
+                             ( \ k   inp -> let deleterest inp =  case deleteAtEnd inp of
+                                                  Nothing -> let (finalerrors, finalstate) = getErrors inp
+                                                             in  (k finalstate)
+                                                  Just (i, inp') -> Fail [] [const (i, deleterest inp')]
+                                            in deleterest inp))
+              nep = Nothing --  (error "Unforeseen use of pEnd function; pEnd should only be used in function running the actual parser")
+         in P (mkParser nnp nep) nnp Zero nep
+           
 
 -- The function @`parse`@ shows the prototypical way of running a parser on a some specific input
 -- By default we use the future parser, since this gives us access to partal result; future parsers are expected to run in less space
 parse :: (Eof t) => P t a -> t -> a
-parse   (P _  pf _ _ _)  = fst . eval . pf  (\ rest   -> if eof rest then succeedAlways        else error "pEnd missing?")
-parse_h (P ph _  _ _ _)  = fst . eval . ph  (\ a rest -> if eof rest then push a failAlways else error "pEnd missing?") 
+parse   (P (T _  pf _) _ _ _)  = fst . eval . pf  (\ rest   -> if eof rest then succeedAlways        else error "pEnd missing?")
+parse_h (P (T ph _  _) _ _ _)  = fst . eval . ph  (\ a rest -> if eof rest then push a failAlways else error "pEnd missing?") 
 
 -- ** The state may be temporarily change type: @`pSwitch`@
 -- | `pSwitch` takes the current state and modifies it to a different type of state to which its argument parser is applied. 
 --   The second component of the result is a function which  converts the remaining state of this parser back into a valuee of the original type.
 
-pSwitch :: (st1 -> (st2, st2 -> st1)) -> P st2 a -> P st1 a
-pSwitch split (P ph pf pr pl pe)    = P (\ k st1 ->  let (st2, back) = split st1
+pSwitch :: (st1 -> (st2, st2 -> st1)) -> P st2 a -> P st1 a -- we require let (n,f) = split st in f n to be equal to st
+pSwitch split (P _ np pl pe)    
+   = let nnp = fmap (\ (T ph pf pr) ->T (\ k st1 ->  let (st2, back) = split st1
                                                      in ph (\ a st2' -> k a (back st2')) st2)
                                         (\ k st1 ->  let (st2, back) = split st1
                                                      in pf (\st2' -> k (back st2')) st2)
                                         (\ k st1 ->  let (st2, back) = split st1
-                                                     in pr (\st2' -> k (back st2')) st2)
-                                        pl
-                                        pe 
+                                                     in pr (\st2' -> k (back st2')) st2)) np
+     in P (mkParser nnp pe) nnp pl pe
 
 -- * Maintaining Progress Information
 -- | The data type @`Steps`@ is the core data type around which the parsers are constructed.
@@ -410,11 +482,10 @@ removeEnd_f (Micro c l      )  =   Micro c (removeEnd_f l)
 removeEnd_f (End_f(s:ss) r)    =   Apply  (:(map  eval ss)) s 
                                                  `best`
                                           removeEnd_f r
+
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%% Auxiliary Functions and Types        %%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-trace' v m = m 
 
 -- * Auxiliary functions and types
 -- ** Checking for non-sensical combinations: @`must_be_non_empty`@ and @`must_be_non_empties`@
@@ -423,7 +494,7 @@ trace' v m = m
 --   the module Text>parserCombinators.UU.Derived
 
 must_be_non_empty :: [Char] -> P t t1 -> t2 -> t2
-must_be_non_empty msg p@(P _ _ _ _ (Just _ )) _ 
+must_be_non_empty msg p@(P _ _ Zero _) _ 
             = error ("The combinator " ++ msg ++ "\n" ++
                      "    requires that it's argument cannot recognise the empty string\n")
 must_be_non_empty _ _  q  = q
@@ -432,10 +503,11 @@ must_be_non_empty _ _  q  = q
 --   make sense if both parsers can recognise the empty string. Your grammar is then highly ambiguous.
 
 must_be_non_empties :: [Char] -> P t1 t -> P t3 t2 -> t4 -> t4
-must_be_non_empties  msg (P _ _ _ _ (Just _ )) (P _ _ _ _ (Just _ )) _ 
+must_be_non_empties  msg (P _ _ Zero _) (P _ _ Zero _ ) _ 
             = error ("The combinator " ++ msg ++ "\n" ++
                      "    requires that not both arguments can recognise the empty string\n")
 must_be_non_empties  msg _  _ q = q
+
 
 -- ** The type @`Nat`@ for describing the minimal number of tokens consumed
 -- | The data type @`Nat`@ is used to represent the minimal length of a parser.
@@ -456,7 +528,13 @@ nat_add Infinite  _ = trace' "Infinite in add\n" Infinite
 nat_add Zero      r = trace' "Zero in add\n"     r
 nat_add (Succ l)  r = trace' "Succ in add\n"     (Succ (nat_add l r))
 
-get_length (P _ _ _ l _) = l
+-- get_length (P _ _  l _) = l
+
+
+trace' v m = m 
+
+
+
 
 
 

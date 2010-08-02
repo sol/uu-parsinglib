@@ -3,12 +3,18 @@
               TypeSynonymInstances,
               MultiParamTypeClasses  #-}
 
-module Text.ParserCombinators.UU.Examples where
+-- | This module contains a lot of examples of the typical use of our parser combinator library. 
+--   We strongly encourage you to take a look at the source code
+--   At the end you find a @`main`@ function which demonsrates the main characteristics. 
+--   Only the `@run`@ function is exported since it may come in handy elsewhere.
+
+module Text.ParserCombinators.UU.Examples (run) where
 import Char
 import Text.ParserCombinators.UU.Core
 import Text.ParserCombinators.UU.Derived
 import Text.ParserCombinators.UU.BasicInstances
 import Text.ParserCombinators.UU.Merge
+import Text.ParserCombinators.UU.Perms
 import Control.Monad
 
 -- | The fuction @`run`@ runs the parser and shows both the result, and the correcting steps which were taken during the parsing process.
@@ -28,6 +34,8 @@ pa  ::Parser String
 pa  = lift <$> pSym 'a'
 pb  :: Parser String 
 pb = lift <$> pSym 'b'
+pc  :: Parser String 
+pc = lift <$> pSym 'c'
 lift a = [a]
 
 -- | We can now run the parser @`pa`@ on input \"a\", which succeeds:
@@ -284,7 +292,7 @@ test15 = run ((,,) `pMerged` (list_of pDigit <||> list_of pLower <||> list_of pU
 -- 
 
 munch :: Parser String
-munch =  pMunch ( `elem` "^=*") 
+munch =  pa *> pMunch ( `elem` "^=*") <* pb
 
 -- | The effect of the combinator `manytill` from Parsec can be achieved:
 --
@@ -332,10 +340,10 @@ pAnyToken = pAny pToken
 
 -- parsing two alternatives and returning both rsults
 pIntList :: Parser [Int]
-pIntList       =  pParens ((pSym ';') `pListSep` (read <$> pList (pSym ('0', '9'))))
-parseIntString =  pList ( pSym ('\000', '\254'))
+pIntList       =  pParens ((pSym ';') `pListSep` (read <$> pList1 (pSym ('0', '9'))))
+parseIntString =  pParens ((pSym ';') `pListSep` (         pList1 (pSym ('0', '9'))))
 
-parseBoth =  amb (Left <$> pIntList <|> Right <$> parseIntString)
+parseBoth =  amb (Left <$>  parseIntString <|> Right <$> pIntList)
 
 main :: IO ()
 main = do test1
@@ -348,9 +356,10 @@ main = do test1
           run paz "ab1z7"
           run paz' "m"
           run paz' ""
-          run (pa <|> pb <?> "just a message") "c"
+          run (pa <|> pb {-<?> "just a message"-}) "c"
           run parseBoth "(123;456;789)"
           run munch "a^=^**^^b"
+          run (pPerms ((,,) ~$~ pa ~*~ pb ~*~ pc)) "cab"
 
 
 
