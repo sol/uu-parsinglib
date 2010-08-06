@@ -38,8 +38,8 @@ class Eof state where
 -- | The input state may contain a location which can be used in error messages. Since we do not want to fix our input to be just a @String@ we provide an interface
 --   which can be used to advance the location by passing its information in the function splitState
 
-class Show loc => loc `IsLocationUpdatedBy` str where
-    advance::loc -> str -> loc
+class Show loc => loc `IsLocationUpdatedBy` a where
+    advance::loc -> a -> loc
 
 --  ** An extension to @`Alternative`@ which indicates a biased choice
 -- | In order to be able to describe greedy parsers we introduce an extra operator, whch indicates a biased choice
@@ -93,10 +93,14 @@ instance ExtAlternative Maybe where
 
 -- * The  descriptor @`P`@ of a parser, including the tupled parser corresponding to this descriptor
 --
-data  P   st  a =  P  (T  st a)         --   actual parsers
-                      (Maybe (T st a))  --   non-empty parsers; Nothing if  they are absent
-                      Nat               --   minimal length
-                      (Maybe a)         --   possibly empty with value 
+data  P   st  a =  P         (T  st a) 
+                      -- ^  actual parsers
+                      (Maybe (T st a)) 
+                      -- ^  non-empty parsers; Nothing if  they are absent
+                      Nat              
+                      -- ^  minimal length
+                      (Maybe a)        
+                      -- ^ possibly empty with value 
 
 instance Show (P st a) where
   show (P _ nt n e) = "P _ " ++ maybe "Nothing" (const "(Just _)") nt ++ " (" ++ show n ++ ") " ++ maybe "Nothing" (const "(Just _)") e
@@ -170,18 +174,18 @@ instance ExtAlternative (P st) where
   P ap np pl pe <<|> P aq nq ql qe 
     = let (rl, b) = nat_min pl ql 0
           bestx = if b then flip best else best
-          choose:: T st a -> T st a -> T st a
-          choose  (T ph pf pr)  (T qh qf qr) 
+          choose:: (forall a . Steps a -> Steps a -> Steps a) -> T st a -> T st a -> T st a
+          choose best (T ph pf pr)  (T qh qf qr) 
              = T  (\ k st -> let left  = norm (ph k st)
-                             in if has_success left then left else left `bestx` qh k st)
+                             in if has_success left then left else left `best` qh k st)
                   (\ k st -> let left  = norm (pf k st)
-                             in if has_success left then left else left `bestx` qf k st) 
+                             in if has_success left then left else left `best` qf k st) 
                  (\ k st -> let left  = norm (pr k st)
-                            in if has_success left then left else left  `bestx` qr k st)
-      in   P (choose  ap aq )
-             (maybe np (\nqq -> maybe nq (\npp -> return( choose  npp nqq)) np) nq)
+                            in if has_success left then left else left  `best` qr k st)
+      in   P (choose bestx ap aq )
+             (maybe np (\nqq -> maybe nq (\npp -> return( choose bestx npp nqq)) np) nq)
              rl
-             (pe <|> qe) -- due to the way Maybe is instance of Alternative  the left hand operator gets priority
+             (if b then pe else qe)
 
 -- ** Parsers can recognise single tokens:  @`pSym`@ and  @`pSymExt`@
 --   Many parsing libraries do not make a distinction between the terminal symbols of the language recognised 
@@ -417,7 +421,7 @@ apply       =  Apply (\(b2a, ~(b, r)) -> (b2a b, r))
 pushapply   :: (b -> a) -> Steps (b, r) -> Steps (a, r)
 pushapply f = Apply (\ (b, r) -> (f b, r)) 
 
--- | @`norm`@ makes sure that the head of the seqeunce contains progress information. It does so by pushing information about the result (i.e. the @Apply@ steps) backwards.
+-- | @`norm` makes sure that the head of the seqeunce contains progress information. It does so by pushing information about the result (i.e. the @Apply@ steps) backwards.
 --
 norm ::  Steps a ->  Steps   a
 norm     (Apply f (Step   p    l  ))   =   Step  p (Apply f l)

@@ -1,7 +1,7 @@
-module Text.ParserCombinators.UU.Merge((<||>), pMerged, list_of) where
+module Text.ParserCombinators.UU.Merge  {-# DEPRECATED "Use equivalent functionality from Text.ParserCombinators.UU.Derived instead" #-} 
+  ((<||>), pMerged, list_of) where
 
 import Text.ParserCombinators.UU.Core
-import Text.ParserCombinators.UU.Derived
 import Text.ParserCombinators.UU.BasicInstances
 
 -- | Often one wants to read a sequence of elements of different types, 
@@ -26,7 +26,7 @@ import Text.ParserCombinators.UU.BasicInstances
 
 pMerged ::  c -> (d, P st (d -> d), c -> d -> e) -> P st e
 sem `pMerged` (units, alts, unp)
- = let pres = alts <*> pres `opt` units in unp sem <$> pres
+ = let pres = alts <*> pres <<|> pure units in unp sem <$> pres
 
 list_of :: P st c -> ([d], P st ([c] -> [c]),e -> e)
 list_of p = ([], (:) <$> p, id)

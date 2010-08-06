@@ -1,5 +1,5 @@
 Name:                uu-parsinglib
-Version:             2.5.1.1
+Version:             2.5.4
 Build-Type:          Simple
 License:             MIT
 Copyright:           S Doaitse Swierstra 
@@ -12,13 +12,14 @@ Bug-reports:         mailto:doaitse@swierstra.net
 Synopsis:            Online, error-correcting parser combinators; monadic and applicative interfaces       
 Cabal-Version:       >=1.4
 Description:         New version of the Utrecht University parser combinator library, which  provides online, error correction, 
-                     annotation free, applicative style parser combinators. In addition to this we even  provide a monadic interface.
-                     Parsers do analyse themselves to avoid commonly made errors
+                     annotation free, applicative style parser combinators. In addition to this we do  provide a monadic interface.
+                     Parsers do analyse themselves to avoid commonly made errors. A recent addition was the combinator @`pMerge`@ and 
+                     associates which generalises merging and permuting parsers.
                      .
-                     The module "Text.ParserCombinators.UU.Examples" contains a ready-made main function,
-                     which can be called to see the error correction at work. It contains extensive haddock documentation; 
+                     The module "Text.ParserCombinators.UU.Examples" contains a  ready-made @main@  function,
+                     which can be called to see e.g. the error correction at work. It contains haddock documentation; 
                      try all the small tests for yourself to see the correction process at work, and to get a 
-                     feeling for how to use the various combinators.
+                     feeling for how to use the various combinators. 
                      .
                      The file "Text.ParserCombinators.UU.Changelog" contains a log of the most recent changes and additions
                      .
@@ -36,8 +37,5 @@ Library
                      Text.ParserCombinators.UU.Core  
                      Text.ParserCombinators.UU.BasicInstances
                      Text.ParserCombinators.UU.Derived
-                     Text.ParserCombinators.UU.Merge
-                     Text.ParserCombinators.UU.Perms 
                      Text.ParserCombinators.UU.Examples
-                     Text.ParserCombinators.UU.Parsing
 

@@ -1,12 +1,36 @@
 -- | This module just contains the CHANGELOG
 --
+-- Version 2.5.4
+--
+--      * made the merging combinators more general introducing  @pAtMost@, @pBetween@ and  @pAtLeast@; examples are extended; see @`demo_merge`@
+--
+--      * used CPP in order to generate demo's easily
+--
+--      * fixed a bug which made @pPos@ ambiguous
+--
+--      * modified haddock stuff
+--
+-- Version 2.5.3
+--
+--      * fixed a bug in the implementation; some functions were too strict, due to introduction of nice abstractions!!
+--
+--      * added a generalisation of @`pMerged`@ and @`pPerms`@ to the module "Text.ParserCombinators.UU.Derived";  the old modules have been marked as deprecated
+--
+--      * removed the old module Text.ParserCombinators.UU.Parsing, which was already marged as deprecated
+--
+-- Version 2.5.2
+-- 
+--      * fixed a bug in sequential composition with a pure as left hand side
+--
+--      * added an experimental @pMerge@, which combines the featurs of @pPerms@ and @pMerged@
+--
 --   Version 2.5.1.1
 -- 
 --       * Now with the correct Changelog
 --
 --  Version 2.5.1 
 --
---       * added the Permutation parsers from the old uulib
+--       * added the permutation parsers from the old uulib
 --
 --       * extended the abstract interpretation so more soundness checks can be done statically
 --

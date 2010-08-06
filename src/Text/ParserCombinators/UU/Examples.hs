@@ -1,21 +1,20 @@
 {-# OPTIONS_HADDOCK  ignore-exports #-}
 {-# LANGUAGE  FlexibleInstances,
               TypeSynonymInstances,
-              MultiParamTypeClasses  #-}
+              MultiParamTypeClasses,
+              CPP  #-}
 
 -- | This module contains a lot of examples of the typical use of our parser combinator library. 
 --   We strongly encourage you to take a look at the source code
---   At the end you find a @`main`@ function which demonsrates the main characteristics. 
---   Only the `@run`@ function is exported since it may come in handy elsewhere.
+--   At the end you find a @`main`@ function which demonstrates the main characteristics. 
+--   Only the @`run`@ function is exported since it may come in handy elsewhere.
 
-module Text.ParserCombinators.UU.Examples (run) where
+module Text.ParserCombinators.UU.Examples (run, demo) where
 import Char
 import Text.ParserCombinators.UU.Core
-import Text.ParserCombinators.UU.Derived
 import Text.ParserCombinators.UU.BasicInstances
-import Text.ParserCombinators.UU.Merge
-import Text.ParserCombinators.UU.Perms
-import Control.Monad
+import Text.ParserCombinators.UU.Derived
+-- import Control.Monad
 
 -- | The fuction @`run`@ runs the parser and shows both the result, and the correcting steps which were taken during the parsing process.
 run :: Show t =>  Parser t -> String -> IO ()
@@ -196,7 +195,7 @@ test10 = run wfp "((()))()(())"
 test11 = run expr "15-3*5"
 expr :: Parser Int
 operators       = [[('+', (+)), ('-', (-))],  [('*' , (*))], [('^', (^))]]
-same_prio  ops  = msum [ op <$ pSym c | (c, op) <- ops]
+same_prio  ops  = foldr (<|>) empty [ op <$ pSym c | (c, op) <- ops]
 expr            = foldr pChainl ( pNatural <|> pParens expr) (map same_prio operators) 
 
 
@@ -263,17 +262,6 @@ takes_second_alt =   pList ident
 test13 = run takes_second_alt "if a then if else c"
 test14 = run takes_second_alt "ifx a then if else c"
 
--- | For documentation of @`pMerged`@ and @`<||>`@ see the module "Text.ParserCombinators.UU.Merge":
---
--- > run  (,,) `pMerged` (list_of pDigit <||> list_of pLower <||> list_of pUpper) "1AabCD2D3d"
---
--- results in
--- 
--- > Result: ("123","abd","ACDD")
--- 
-
-test15 :: IO ()
-test15 = run ((,,) `pMerged` (list_of pDigit <||> list_of pLower <||> list_of pUpper)) "1AabCD2D3d"
 
 -- | The function
 --
@@ -341,25 +329,50 @@ pAnyToken = pAny pToken
 -- parsing two alternatives and returning both rsults
 pIntList :: Parser [Int]
 pIntList       =  pParens ((pSym ';') `pListSep` (read <$> pList1 (pSym ('0', '9'))))
+parseIntString :: Parser [String]
 parseIntString =  pParens ((pSym ';') `pListSep` (         pList1 (pSym ('0', '9'))))
 
-parseBoth =  amb (Left <$>  parseIntString <|> Right <$> pIntList)
+#define DEMO(p,i) demo "p" i p
+
+justamessage = "justamessage"
 
 main :: IO ()
-main = do test1
-          run pa "b"
-          run pa2 "bbab"
-          run pa "ba"
-          run pa "aa"
-          run (do  {l <- pCount pa; pExact l pb}) "aaacabbbb"
-          run (amb ( (++) <$> pa2 <*> pa3 <|> (++) <$> pa3 <*> pa2))  "aaabaa"
-          run paz "ab1z7"
-          run paz' "m"
-          run paz' ""
-          run (pa <|> pb {-<?> "just a message"-}) "c"
-          run parseBoth "(123;456;789)"
-          run munch "a^=^**^^b"
-          run (pPerms ((,,) ~$~ pa ~*~ pb ~*~ pc)) "cab"
+main = do DEMO (pa,  "a")
+          DEMO (pa,  "b")
+          DEMO (((++) <$> pa <*> pa), "bbab")
+          DEMO (pa,  "ba")
+          DEMO (pa,  "aa")
+          DEMO ((do  {l <- pCount pa; pExact l pb}),   "aaacabbbb")
+          DEMO ((amb ( (++) <$> pa2 <*> pa3 <|> (++) <$> pa3 <*> pa2)),    "aaaaa")
+          DEMO (paz, "ab1z7")
+          DEMO ((pa <|> pb <?> justamessage),   "c")
+          DEMO ((amb (pEither  parseIntString  pIntList)),   "(123;456;789)")
+          DEMO (munch,   "a^=^**^^b")
+          demo_merge
 
+
+
+-- | For documentation of @`pMerge`@ and @`<||>`@ see the module "Text.ParserCombinators.UU.Merge". Here we just give a @deno_merge@, which
+--   should speak for itself. Make sure your parsers are not getting ambiguous. This soon gets very expensive.
+--
+demo_merge :: IO ()
+demo_merge = do DEMO (((,)   `pMerge` (pBetween 2 3 pa <||> pBetween 1 2 pb))                       , "abba")  
+                DEMO (((,)   `pMerge` (pBetween 2 3 pa <||> pBetween 1 2 pb))                       , "bba")
+                -- run ((,)   `pMerge` (pBetween 2 3 pa <||> pBetween 1 2 pa))                      , "aaa") -- is ambiguous, and thus incorrect
+                DEMO ((amb ((,)   `pMerge` (pBetween 2 3 pa <||> pBetween 1 2 pa)))                 , "aaa")
+                putStr "The 'a' at the right hand side can b any of the three 'a'-s in the input\n"
+                DEMO (((,)   `pMerge` (pAtLeast 3 pa <||> pAtMost 3 pb))                            , "aabbbb")  
+                DEMO (((,)   `pMerge` (pSome pa <||> pMany pb))                                     , "abba")       
+                DEMO (((,)   `pMerge` (pSome pa <||> pMany pb))                                     , "abba")           
+                DEMO (((,)   `pMerge` (pSome pa <||> pMany pb))                                     , "")         
+                DEMO (((,)   `pMerge` (pMany pb <||> pSome pc))                                     , "bcbc")          
+                DEMO (((,)   `pMerge` (pSome pb <||> pMany pc))                                     , "bcbc")
+                DEMO (((,,,) `pMerge` (pSome pa <||> pMany pb <||> pOne pc <||>  pNatural `pOpt` 5)), "babc45" )
+                DEMO (((,)   `pMerge` (pMany (pa <|> pb) <||> pSome pNatural))                      , "1ab12aab14")
+
+
+demo :: Show r => String -> String -> Parser r -> IO ()
+demo str  input p= do putStr ("\n===========================================\n>>   run " ++ str ++ "  " ++ show input ++ "\n")
+                      run p input
 
 

@@ -22,7 +22,9 @@
 -- @
 --
 
-module Text.ParserCombinators.UU.Perms(Perms(), pPerms, pPermsSep, succeedPerms, (~*~), (~$~)) where
+module Text.ParserCombinators.UU.Perms 
+      {-# DEPRECATED "Use equivalent functionality from Text.ParserCombinators.UU.Derived instead" #-}
+  (Perms(), pPerms, pPermsSep, succeedPerms, (~*~), (~$~)) where
 import Text.ParserCombinators.UU.Core
 import Data.Maybe
 

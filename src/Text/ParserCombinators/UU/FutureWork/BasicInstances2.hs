@@ -17,6 +17,9 @@ import Text.ParserCombinators.UU.Core
 import Data.List
 import Debug.Trace
 
+class StringLike str c where
+   uncons: str -> Maybe (c, str)
+
 data Error  pos =    Inserted String pos Strings
                    | Deleted  String pos Strings
                    | DeletedAtEnd String
@@ -50,7 +53,7 @@ instance IsLocationUpdatedBy (Int,Int) Char where
 instance IsLocationUpdatedBy (Int,Int) String where
    advance  = foldl advance 
 
-instance (Show a,  loc `IsLocationUpdatedBy` a) => Provides  (Str  a loc)  (a -> Bool, String, a)  a where
+instance (Show a,  loc `IsLocationUpdatedBy` a, StringLike str a) => Provides  (Str  a loc)  (a -> Bool, String, a)  a where
        splitState (p, msg, a) k (Str  tts   msgs pos  del_ok) 
           = let ins exp =       (5, k a (Str tts (msgs ++ [Inserted (show a)  pos  exp]) pos  False))
                 del exp =       (5, splitState (p,msg, a) 
@@ -59,17 +62,17 @@ instance (Show a,  loc `IsLocationUpdatedBy` a) => Provides  (Str  a loc)  (a ->
                                          (msgs ++ [Deleted  (show(head tts))  pos  exp]) 
                                          (advance pos (head tts))
                                          True ))
-            in case tts of
-               (t:ts)  ->  if p t 
-                           then  show_symbol ("Accepting symbol: " ++ show t ++ " at position: " ++ show pos ++"\n") 
-                                 (Step 1 (k t (Str ts msgs (advance pos t) True)))
-                           else  Fail [msg] (ins: if del_ok then [del] else [])
-               []      ->  Fail [msg] [ins]
+            in case uncons tts of
+               Just (t,ts)  ->  if p t 
+                                then  show_symbol ("Accepting symbol: " ++ show t ++ " at position: " ++ show pos ++"\n") 
+                                      (Step 1 (k t (Str ts msgs (advance pos t) True)))
+                                else  Fail [msg] (ins: if del_ok then [del] else [])
+               Nothing ->  Fail [msg] [ins]
 
 instance (Ord a, Show a, loc `IsLocationUpdatedBy`  a) => Provides  (Str  a loc)  (a,a)  a where
        splitState a@(low, high) = splitState (\ t -> low <= t && t <= high, show low ++ ".." ++ show high, low)
 
-instance (Eq a, Show a, loc `IsLocationUpdatedBy`  a) => Provides  (Str  a loc)  a  a where
+instance (Eq a, Show a, loc `IsLocationUpdatedBy`  a, StringLike str a) => Provides  (Str  a loc)  a  a where
        splitState a  = splitState ((==a), show a, a) 
 
 instance Show a => Eof (Str a loc) where
@@ -99,8 +102,6 @@ instance (Show a, loc `IsLocationUpdatedBy` [a]) => Provides (Str a loc) (Munch 
 pMunch :: (Provides st (Munch a) [a]) => (a -> Bool) -> P st [a]
 pMunch  p   = pSymExt Zero Nothing  (Munch p "") -- the empty case is handled above
 pMunchL p l = pSymExt Zero Nothing  (Munch p l) -- the empty case is handled above
-
-
 data Token a = Token [a] Int -- the Int value represents the cost for inserting such a token
 
 instance (Show a, Eq a, loc `IsLocationUpdatedBy` [a]) => Provides (Str a loc) (Token a) [a] where 
