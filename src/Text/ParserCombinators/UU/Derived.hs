@@ -157,7 +157,6 @@ data Freq p =   AtLeast Int     p
               | Many            p
               | Opt             p
               | Never           p
-              
 
 instance Functor Freq where
    fmap f (AtLeast n     p)    = AtLeast n   (f p)
@@ -176,30 +175,31 @@ canBeEmpty (Many         p)  = True
 canBeEmpty (Opt          p)  = True
 canBeEmpty (Never        p)  = True
 
-oneAlt  (AtLeast 1   p, others)   = (p, toTree (Many                p : others))
-oneAlt  (AtLeast n   p, others)   = (p, toTree (AtLeast  (n-1)      p : others))
-oneAlt  (AtMost  1   p, others)   = (p, toTree                          others )
-oneAlt  (AtMost  n   p, others)   = (p, toTree (AtMost   (n-1)      p : others))
-oneAlt  (Between 1 1 p, others)   = (p, toTree                          others )
-oneAlt  (Between 1 m p, others)   = (p, toTree (AtMost        (m-1) p : others))
-oneAlt  (Between n m p, others)   = (p, toTree (Between (n-1) (m-1) p : others))
-oneAlt  (One         p, others)   = (p, toTree                          others )
-oneAlt  (Many        p, others)   = (p, toTree (Many                p : others))
-oneAlt  (Opt         p, others)   = (p, toTree                          others )
-
-data Tree p = Br [(p, Tree p)] Bool
-
--- this code can be optimised in order to avoid repeated analyses; to be done later
---
-toTree :: [Freq p] -> Tree p
-toTree  alts = Br (map oneAlt (split alts id)) (and (map canBeEmpty alts) )
+split :: [Freq p] -> ([Freq p] -> [Freq p]) -> [(p, [Freq p])]
 split []     _ = []
-split (x:xs) f = (x, f xs): split xs (f.(x:))
+split (x:xs) f = oneAlt (x, f xs): split xs (f.(x:))
+                 where oneAlt  (AtLeast 1   p, others)   = (p, Many                p : others)
+                       oneAlt  (AtLeast n   p, others)   = (p, AtLeast  (n-1)      p : others)
+                       oneAlt  (AtMost  1   p, others)   = (p,                         others)
+                       oneAlt  (AtMost  n   p, others)   = (p, AtMost   (n-1)      p : others)
+                       oneAlt  (Between 1 1 p, others)   = (p,                         others)
+                       oneAlt  (Between 1 m p, others)   = (p, AtMost        (m-1) p : others)
+                       oneAlt  (Between n m p, others)   = (p, Between (n-1) (m-1) p : others)
+                       oneAlt  (One         p, others)   = (p,                         others)
+                       oneAlt  (Many        p, others)   = (p, Many                p : others)
+                       oneAlt  (Opt         p, others)   = (p,                         others)
 
-toParser :: Tree (P st (d -> d)) -> d -> P st d
-toParser (Br alts b)  units = foldr (<|>) (if b then pure units else empty)  
-                              [p <*> toParser ps units | (p,ps) <- alts]
+toParser :: [ Freq (P st (d -> d)) ] -> P st d -> P st d
+toParser []    units  =  units
+toParser alts  units  =  let palts = [p <*> toParser  ps units | (p,ps) <- split alts id]
+                         in if and (map canBeEmpty alts) 
+                            then foldr (<|>) units palts
+                            else foldr1 (<|>) palts
 
+toParserSep alts sep  units  =  let palts = [p <*> toParser  (map (fmap (sep *>)) ps) units | (p,ps) <- split alts id]
+                                in if   and (map canBeEmpty alts) 
+                                   then foldr  (<|>) units palts
+                                   else foldr1 (<|>) palts
 
 newtype MergeSpec p = MergeSpec p
 
@@ -212,9 +212,13 @@ MergeSpec (pe, pp, punp) <||> MergeSpec (qe, qp, qunp)
              , map (fmap (mapFst <$>)) pp ++  map (fmap (mapSnd <$>)) qp
              , \f (x, y) -> qunp (punp f x) y
              )
+f `pSem` MergeSpec (units, alts, unp) = MergeSpec  (units, alts, \ g arg -> g ( unp f arg))
 
 pMerge ::  c -> MergeSpec (d, [Freq (P st (d -> d))], c -> d -> e) -> P st e
-sem `pMerge` MergeSpec (units, alts, unp) =  unp sem <$> toParser (toTree alts) units
+sem `pMerge` MergeSpec (units, alts, unp) =  unp sem <$> toParser alts (pure units)
+
+pMergeSep ::  (c, P st a)  -> MergeSpec (d, [Freq (P st (d -> d))], c -> d -> e) -> P st e
+(sem, sep) `pMergeSep` MergeSpec (units, alts, unp) =  unp sem <$> toParserSep alts sep (pure units)
 
 pBetween  n m p = must_be_non_empty "pOpt"  p 
                  (if m <n || m <= 0 then         (MergeSpec ([]       ,[                           ], id)) 

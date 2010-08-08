@@ -1,5 +1,21 @@
 -- | This module just contains the CHANGELOG
 --
+-- Version 2.5.4.1
+--
+--      * added a @pSem@ which makes it possible to tell how certain components of merged structures are to be combined before exposing all elements to the outer sem: 
+--
+-- >  run ( (,)  `pMerge` ( ((++) `pSem` (pMany pa <||> pMany pb)) <||> pOne pc))  "abcaaab"
+-- >
+-- >  Result: (["a","a","a","a","b","b"],"c")
+--
+--      * added a @pMergedSep@, which allows you to specify a separator between two merged elements
+--
+-- >  run ((((,), pc) `pMergeSep` (pMany pa <||> pMany pb))) "acbcacbc"
+-- >
+-- > Result: (["a","a","a"],["b","b"])
+-- > Correcting steps: 
+-- >    Inserted 'a' at position (0,8) expecting one of ['b', 'a']
+--
 -- Version 2.5.4
 --
 --      * made the merging combinators more general introducing  @pAtMost@, @pBetween@ and  @pAtLeast@; examples are extended; see @`demo_merge`@
