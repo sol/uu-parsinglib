@@ -369,6 +369,8 @@ demo_merge = do DEMO (((,)   `pMerge` (pBetween 2 3 pa <||> pBetween 1 2 pb))   
                 DEMO (((,)   `pMerge` (pSome pb <||> pMany pc))                                     , "bcbc")
                 DEMO (((,,,) `pMerge` (pSome pa <||> pMany pb <||> pOne pc <||>  pNatural `pOpt` 5)), "babc45" )
                 DEMO (((,)   `pMerge` (pMany (pa <|> pb) <||> pSome pNatural))                      , "1ab12aab14")
+                DEMO (( (,)  `pMerge` ( ((++) `pSem` (pMany pa <||> pMany pb)) <||> pOne pc))       , "abcaaab")
+                DEMO (((((,), pc) `pMergeSep` (pMany pa <||> pMany pb)))                              , "acbcacb")
 
 
 demo :: Show r => String -> String -> Parser r -> IO ()
