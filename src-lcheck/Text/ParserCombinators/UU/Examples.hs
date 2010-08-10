@@ -18,7 +18,9 @@ import Text.ParserCombinators.UU.Derived
 
 -- | The fuction @`run`@ runs the parser and shows both the result, and the correcting steps which were taken during the parsing process.
 run :: Show t =>  Parser t -> String -> IO ()
-run p inp = do  let r@(a, errors) =  parse ( (,) <$> p <*> pEnd) (listToStr inp (0,0))
+run  (p@(P _ _ _ _ (_,lr))) inp 
+          = if lr then putStrLn "-- > The grammar is left recursive (maybe deep inside)!" else
+            do  let r@(a, errors) =  parse ( (,) <$> p <*> pEnd) (listToStr inp (0,0))
                 putStrLn "--"
                 putStrLn ("-- > Result: " ++ show a)
                 if null errors then  return ()
@@ -342,6 +344,8 @@ main = do DEMO (pa,  "a")
           DEMO (((++) <$> pa <*> pa), "bbab")
           DEMO (pa,  "ba")
           DEMO (pa,  "aa")
+          DEMO ((let prl = (++) <$> prl <*> pa in prl), "a")
+          DEMO ((let prl = (++) <$> prl <*> pa in (++) <$> pa <*> prl), "a")
           DEMO ((do  {l <- pCount pa; pExact l pb}),   "aaacabbbb")
           DEMO ((amb ( (++) <$> pa2 <*> pa3 <|> (++) <$> pa3 <*> pa2)),    "aaaaa")
           DEMO (paz, "ab1z7")
