@@ -14,6 +14,9 @@ import Control.Applicative  hiding  (many, some, optional)
 import Char
 import Debug.Trace
 import Maybe
+import Data.IORef
+import System.IO.Unsafe
+
 
 
 infix   2  <?>    -- should be the last element in a sequence of alternatives
@@ -97,9 +100,13 @@ data  P   st  a =  P  (T  st a)         --   actual parsers
                       (Maybe (T st a))  --   non-empty parsers; Nothing if  they are absent
                       Nat               --   minimal length
                       (Maybe a)         --   possibly empty with value 
+                      Int               --   a unique number identifying this parser; a dirty hack
+                      ([Int] -> [Int] -> ([Int], Messages)) -- the checking function
 
 instance Show (P st a) where
   show (P _ nt n e) = "P _ " ++ maybe "Nothing" (const "(Just _)") nt ++ " (" ++ show n ++ ") " ++ maybe "Nothing" (const "(Just _)") e
+
+counter = unsafePerformIO (newIORef (0:: Int))
 
 getOneP (P _ (Just _)  Zero _ )    =  error "The element is a special parser which cannot be combined"
 getOneP (P _ Nothing   l    _ )    =  Nothing
@@ -252,9 +259,9 @@ instance  Monad (P st) where
 P  _  np  pl pe <?> label 
   = let nnp = case np of
               Nothing -> Nothing
-              Just ((T ph pf  pr)) -> Just(T ( \ k inp -> replaceExpected  ( ph k inp))
-                                             ( \ k inp -> replaceExpected  ( pf k inp))
-                                             ( \ k inp -> replaceExpected  ( pr k inp)))
+              Just ((T ph pf  pr)) -> Just(T ( \ k inp -> replaceExpected (norm  ( ph k inp)))
+                                             ( \ k inp -> replaceExpected (norm  ( pf k inp)))
+                                             ( \ k inp -> replaceExpected (norm  ( pr k inp))))
         replaceExpected (Fail _ c) = (Fail [label] c)
         replaceExpected others     = others
     in P (mkParser nnp  pe) nnp pl pe
