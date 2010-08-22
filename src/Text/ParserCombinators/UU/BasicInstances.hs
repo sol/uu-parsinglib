@@ -121,6 +121,6 @@ pTokenCost as c =   if null as then error "call to pToken with empty token"
                     where length [] = Zero
                           length (_:as) = Succ (length as)
 
-show_tokens m v = {- trace m-} v
-show_munch  m v = {- trace m-} v
-show_symbol m v = {- trace m-} v
+show_tokens m v = {-  trace m  -} v
+show_munch  m v = {-  trace m  -} v
+show_symbol m v = {-  trace m  -} v
