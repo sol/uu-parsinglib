@@ -14,6 +14,9 @@ import Char
 import Text.ParserCombinators.UU.Core
 import Text.ParserCombinators.UU.BasicInstances
 import Text.ParserCombinators.UU.Derived
+import System.IO
+import GHC.IO.Handle.Types
+
 -- import Control.Monad
 
 -- | The fuction @`run`@ runs the parser and shows both the result, and the correcting steps which were taken during the parsing process.

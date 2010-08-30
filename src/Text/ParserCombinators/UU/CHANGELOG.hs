@@ -1,7 +1,7 @@
 -- | This module just contains the CHANGELOG
--- Version 2.5.3
+-- Version 2.5.5
 --
---      * gave preference to earlier accepts steps in order to avoid infinite insertions in case of otherwise equivalent repair strategies
+--      *  preference is given to earlier accept steps in order to avoid infinite insertions in case of otherwise equivalent repair strategies
 --
 -- Version 2.5.4.2
 --
