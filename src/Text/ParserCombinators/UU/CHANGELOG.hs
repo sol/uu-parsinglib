@@ -1,7 +1,11 @@
 -- | This module just contains the CHANGELOG
+-- Version 2.5.5
+--
+--      *  preference is given to earlier accept steps in order to avoid infinite insertions in case of otherwise equivalent repair strategies
+--
 -- Version 2.5.4.2
 --
---      * fixed small problem in <?> so it gets its change to do its work
+--      * fixed small problem in <?> so it gets its chance to do its work
 --
 -- Version 2.5.4.1
 --

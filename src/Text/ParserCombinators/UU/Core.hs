@@ -14,9 +14,6 @@ import Control.Applicative  hiding  (many, some, optional)
 import Char
 import Debug.Trace
 import Maybe
-import Data.IORef
-import System.IO.Unsafe
-
 
 
 infix   2  <?>    -- should be the last element in a sequence of alternatives
@@ -100,13 +97,9 @@ data  P   st  a =  P  (T  st a)         --   actual parsers
                       (Maybe (T st a))  --   non-empty parsers; Nothing if  they are absent
                       Nat               --   minimal length
                       (Maybe a)         --   possibly empty with value 
-                      Int               --   a unique number identifying this parser; a dirty hack
-                      ([Int] -> [Int] -> ([Int], Messages)) -- the checking function
 
 instance Show (P st a) where
   show (P _ nt n e) = "P _ " ++ maybe "Nothing" (const "(Just _)") nt ++ " (" ++ show n ++ ") " ++ maybe "Nothing" (const "(Just _)") e
-
-counter = unsafePerformIO (newIORef (0:: Int))
 
 getOneP (P _ (Just _)  Zero _ )    =  error "The element is a special parser which cannot be combined"
 getOneP (P _ Nothing   l    _ )    =  Nothing
@@ -477,16 +470,19 @@ getCheapest n l  =  snd $  foldr (\(w,ll) btf@(c, l)
 
 
 traverse :: Int -> Steps a -> Int -> Int  -> Int 
-traverse 0  _                =  trace' ("traverse " ++ show 0 ++ "\n") (\ v c ->  v)
-traverse n (Step _   l)      =  trace' ("traverse Step   " ++ show n ++ "\n") (traverse (n -  1 ) l)
-traverse n (Micro _  l)      =  trace' ("traverse Micro  " ++ show n ++ "\n") (traverse n         l)
-traverse n (Apply _  l)      =  trace' ("traverse Apply  " ++ show n ++ "\n") (traverse n         l)
-traverse n (Fail m m2ls)     =  trace' ("traverse Fail   " ++ show n ++ "\n") (\ v c ->  foldr (\ (w,l) c' -> if v + w < c' then traverse (n -  1 ) l (v+w) c'
-                                                                                                           else c'
-                                                                                            ) c (map ($m) m2ls)
-                                                                    )
-traverse n (End_h ((a, lf))    r)  =  traverse n (lf a `best` removeEnd_h r)
-traverse n (End_f (l      :_)  r)  =  traverse n (l `best` r) 
+traverse 0  _            v c  =  trace' ("traverse " ++ show' 0 v c ++ " choosing" ++ show v ++ "\n") v
+traverse n (Step _   l)  v c  =  trace' ("traverse Step   " ++ show' n v c ++ "\n") (traverse (n -  1 ) l (v-n) c)
+traverse n (Micro _  l)  v c  =  trace' ("traverse Micro  " ++ show' n v c ++ "\n") (traverse n         l v     c)
+traverse n (Apply _  l)  v c  =  {- trace' ("traverse Apply  " ++ show n ++ "\n")-} (traverse n         l v     c)
+traverse n (Fail m m2ls) v c  =  trace' ("traverse Fail   " ++ show m ++ show' n v c ++ "\n") 
+                                 (foldr (\ (w,l) c' -> if v + w < c' then traverse (n -  1 ) l (v+w) c'
+                                                       else c') c (map ($m) m2ls)
+                                 )
+traverse n (End_h ((a, lf))    r)  v c =  traverse n (lf a `best` removeEnd_h r) v c
+traverse n (End_f (l      :_)  r)  v c =  traverse n (l `best` r) v c
+
+show' n v c = "n: " ++ show n ++ " v: " ++ show v ++ " c: " ++ show c
+
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%% Handling ambiguous paths             %%%%%%%%%%%%%%%%%%%
@@ -555,7 +551,7 @@ nat_add (Succ l)  r = trace' "Succ in add\n"     (Succ (nat_add l r))
 
 get_length (P _ _  l _) = l
 
-trace' m v = {- trace m -} v 
+trace' m v = {-  trace m  -} v 
 
 
 
