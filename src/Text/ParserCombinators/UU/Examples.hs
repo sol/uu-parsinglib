@@ -350,6 +350,8 @@ main = do DEMO (pa,  "a")
           DEMO (munch,   "a^=^**^^b")
           demo_merge
 
+
+
 -- | For documentation of @`pMerge`@ and @`<||>`@ see the module "Text.ParserCombinators.UU.Merge". Here we just give a @deno_merge@, which
 --   should speak for itself. Make sure your parsers are not getting ambiguous. This soon gets very expensive.
 --

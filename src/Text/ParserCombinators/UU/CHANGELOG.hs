@@ -1,4 +1,7 @@
 -- | This module just contains the CHANGELOG
+-- Version 2.5.4.2
+--
+--      * fixed small problem in <?> so it gets its change to do its work
 --
 -- Version 2.5.4.1
 --
