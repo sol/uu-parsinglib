@@ -3,6 +3,40 @@ module Text.ParserCombinators.UU.Interface ( module Text.ParserCombinators.UU.In
                                            ) where
 import Control.Applicative --  (Applicative, Alternative, (<$>))
 
+-- *  @IsParser@
+-- | We introduce the class IsParser which collects all functionality we expect from a parser
+--
+class (Applicative p, Alternative p) => Isparser p
+
+
+-- ** `Provides'
+
+-- | The function `splitState` playes a crucial role in splitting up the state. The `symbol` parameter tells us what kind of thing, and even which value of that kind, is expected from the input.
+--   The state  and  and the symbol type together determine what kind of token has to be returned. Since the function is overloaded we do not have to invent 
+--   all kind of different names for our elementary parsers.
+
+class  Provides state symbol token | state symbol -> token  where
+       splitState   ::  symbol -> (token -> state  -> Steps a) -> state -> Steps a
+
+-- ** `Eof'
+
+class Eof state where
+       eof          ::  state   -> Bool
+       deleteAtEnd  ::  state   -> Maybe (Cost, state)
+
+-- ** `Location` 
+-- | The input state may contain a location which can be used in error messages. Since we do not want to fix our input to be just a @String@ we provide an interface
+--   which can be used to advance the location by passing its information in the function splitState
+
+class Show loc => loc `IsLocationUpdatedBy` str where
+    advance::loc -> str -> loc
+
+--  ** An extension to @`Alternative`@ which indicates a biased choice
+-- | In order to be able to describe greedy parsers we introduce an extra operator, which indicates a biased choice
+class ExtAlternative p where
+  (<<|>) :: p a -> p a -> p a
+
+
 data Report   = FromLeft   String Report
               | FromRight  String Report
               | FromSingle String Report

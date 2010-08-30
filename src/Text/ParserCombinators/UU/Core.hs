@@ -11,51 +11,35 @@
 module Text.ParserCombinators.UU.Core ( module Text.ParserCombinators.UU.Core
                                       , module Control.Applicative) where
 import Control.Applicative  hiding  (many, some, optional)
+import Data.BreadthFirstSearch
 import Char
 import Debug.Trace
 import Maybe
 
-
 infix   2  <?>    -- should be the last element in a sequence of alternatives
 infixl  3  <<|>   -- intended use p <<|> q <<|> r <|> x <|> y <?> z
 
-
--- ** `Provides'
-
--- | The function `splitState` playes a crucial role in splitting up the state. The `symbol` parameter tells us what kind of thing, and even which value of that kind, is expected from the input.
---   The state  and  and the symbol type together determine what kind of token has to be returned. Since the function is overloaded we do not have to invent 
---   all kind of different names for our elementary parsers.
-class  Provides state symbol token | state symbol -> token  where
-       splitState   ::  symbol -> (token -> state  -> Steps a) -> state -> Steps a
-
--- ** `Eof'
-
-class Eof state where
-       eof          ::  state   -> Bool
-       deleteAtEnd  ::  state   -> Maybe (Cost, state)
-
--- ** `Location` 
--- | The input state may contain a location which can be used in error messages. Since we do not want to fix our input to be just a @String@ we provide an interface
---   which can be used to advance the location by passing its information in the function splitState
-
-class Show loc => loc `IsLocationUpdatedBy` str where
-    advance::loc -> str -> loc
-
---  ** An extension to @`Alternative`@ which indicates a biased choice
--- | In order to be able to describe greedy parsers we introduce an extra operator, whch indicates a biased choice
-class ExtAlternative p where
-  (<<|>) :: p a -> p a -> p a
-     
-
--- * The  triples containg a  history, a future parser and a recogniser: @`T`@
--- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--- %%%%%%%%%%%%% Triples     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--- actual parsers
+-- * The triples containing a history parser, a future parser and a recogniser: @`T`@
+-- The history parser part is to be used in the left hand side of a monad in order to avoid 
+-- a potential comflict in case the error recovery needs access to the steps produced by the right
+-- hand side. The parsers inside @`T`@ is where the actual work is done
 data T st a  = T  (forall r . (a  -> st -> Steps r)  -> st -> Steps       r  ) --  history parser
                   (forall r . (      st -> Steps r)  -> st -> Steps   (a, r) ) --  future parser
                   (forall r . (      st -> Steps r)  -> st -> Steps       r  ) --  recogniser
 
+-- ** We want to have access to the individual parsers in  a triple
+class UnParser p where
+  unParser_h  :: p a ->  (forall r . (a  -> st -> Steps r)  -> st -> Steps       r  )
+  unParser_f  :: p a ->  (forall r . (      st -> Steps r)  -> st -> Steps   (a, r) )
+  unParser_r  :: p a ->  (forall r . (      st -> Steps r)  -> st -> Steps       r  ) 
+
+instance UnParser p where
+  unParser_h (T  h  _  _ )   =  h
+  unParser_f (T  _  f  _ )   =  f
+  unParser_r (T  _  _  r )   =  r
+
+
+-- ** @T@ is a functor
 instance Functor (T st) where
   fmap f (T ph pf pr) = T  ( \  k -> ph ( k .f ))
                            ( \  k ->  pushapply f . pf k) -- pure f <*> pf
@@ -64,7 +48,7 @@ instance Functor (T st) where
                            ( \ k st -> push f ( pr k st)) 
                            pr
 
--- ** Triples are Applicative:  @`<*>`@,  @`<*`@,  @`*>`@ and  @`pure`@
+-- ** @T@ is Applicative:  @`<*>`@,  @`<*`@,  @`*>`@ and  @`pure`@
 instance   Applicative (T  state) where
   T ph pf pr  <*> ~(T qh qf qr)  =  T ( \  k -> ph (\ pr -> qh (\ qr -> k (pr qr))))
                                       ((apply .) . (pf .qf))
@@ -79,10 +63,15 @@ instance   Alternative (T  state) where
                                     (\  k inp  -> pr k inp `best` qr k inp)
   empty                =  T  ( \  k inp  ->  noAlts) ( \  k inp  ->  noAlts) ( \  k inp  ->  noAlts)
 
-{-
--- instance ExtAlternative (T st) where 
--- unfortunatelythis is not possible since we have to make the choice for swapping elsewhere
--}
+
+instance Monad (T state) where
+  T ph _ _ >>= q = T (  \k -> h (\ a -> unParser_h (a2q a) k))
+                     (  \k -> h (\ a -> unParser_f (a2q a) k))
+                     (  \k -> h (\ a -> unParser_r (a2q a) k)))
+
+
+instance ExtAlternative (T state) where
+  p <<|> q        = error "T is not an instance of ExtAlternative since when performing erro correction we may need to flip the arguments"
 
 
 instance ExtAlternative Maybe where
@@ -94,9 +83,9 @@ instance ExtAlternative Maybe where
 -- * The  descriptor @`P`@ of a parser, including the tupled parser corresponding to this descriptor
 --
 data  P   st  a =  P  (T  st a)         --   actual parsers
-                      (Maybe (T st a))  --   non-empty parsers; Nothing if  they are absent
+                      (Maybe (T st a))  --   non-empty or dynamic parsers; Nothing if  they are absent
                       Nat               --   minimal length
-                      (Maybe a)         --   possibly empty with value 
+                      (Maybe a)         --   possibly empty with static value 
 
 instance Show (P st a) where
   show (P _ nt n e) = "P _ " ++ maybe "Nothing" (const "(Just _)") nt ++ " (" ++ show n ++ ") " ++ maybe "Nothing" (const "(Just _)") e
@@ -200,14 +189,14 @@ instance ExtAlternative (P st) where
 --   and the second telling whether the symbol can recognise the empty string and the value which is to be returned in that case
   
 pSymExt ::   (Provides state symbol token) => Nat -> Maybe token -> symbol -> P state token
-pSymExt l e a  = P t (Just t) l e
+pSymExt l e a  = P (mkParser t e) (Just t) l e
                  where t = T ( \ k inp -> splitState a k inp)
                              ( \ k inp -> splitState a (\ t inp' -> push t (k inp')) inp)
                              ( \ k inp -> splitState a (\ _ inp' -> k inp') inp)
 
 -- | @`pSym`@ covers the most common case of recognsiing a symbol: a single token is removed form the input, 
 -- and it cannot recognise the empty string
-pSym    ::   (Provides state symbol token) =>                       symbol -> P state token
+pSym    ::   (Provides state symbol token) =>  symbol -> P state token
 pSym  s   = pSymExt (Succ Zero) Nothing s 
 
 
@@ -360,171 +349,6 @@ pSwitch split (P _ np pl pe)
                                                      in pr (\st2' -> k (back st2')) st2)) np
      in P (mkParser nnp pe) nnp pl pe
 
--- * Maintaining Progress Information
--- | The data type @`Steps`@ is the core data type around which the parsers are constructed.
---   It is a describes a tree structure of streams containing (in an interleaved way) both the online result of the parsing process,
---   and progress information. Recognising an input token should correspond to a certain amount of @`Progress`@, 
---   which tells how much of the input state was consumed. 
---   The @`Progress`@ is used to implement the breadth-first search process, in which alternatives are
---   examined in a more-or-less synchonised way. The meaning of the various @`Step`@ constructors is as follows:
---
---   [@`Step`@] A token was succesfully recognised, and as a result the input was 'advanced' by the distance  @`Progress`@
---
---   [@`Apply`@] The type of value represented by the `Steps` changes by applying the function parameter.
---
---   [@`Fail`@] A correcting step has to made to the input; the first parameter contains information about what was expected in the input, 
---   and the second parameter describes the various corrected alternatives, each with an associated `Cost`
---
---   [@`Micro`@] A small cost is inserted in the sequence, which is used to disambiguate. Use with care!
---
---   The last two alternatives play a role in recognising ambigous non-terminals. For a full description see the technical report referred to from the README file..
-
-type Cost = Int
-type Progress = Int
-type Strings = [String]
-
-data  Steps   a  where
-      Step   ::                 Progress       ->  Steps a                             -> Steps   a
-      Apply  ::  forall a b.    (b -> a)       ->  Steps   b                           -> Steps   a
-      Fail   ::                 Strings        ->  [Strings   ->  (Cost , Steps   a)]  -> Steps   a
-      Micro   ::                 Cost           ->  Steps a                             -> Steps   a
-      End_h  ::                 ([a] , [a]     ->  Steps r)    ->  Steps   (a,r)       -> Steps   (a, r)
-      End_f  ::                 [Steps   a]    ->  Steps   a                           -> Steps   a
-
-succeedAlways = let steps = Step 0 steps in steps
-failAlways  =  Fail [] [const (0, failAlways)]
-noAlts      =  Fail [] []
-
-has_success (Step _ _) = True
-has_success _        = False 
-
--- ! @`eval`@ removes the progress information from a sequence of steps, and constructs the value embedded in it.
---   If you are really desparate to see how your parsers are making progress (e.g. when you have written an ambiguous parser, and you cannot find the cause of
---   the exponential blow-up of your parsing process, you may switch on the trace in the function @`eval`@
--- 
-eval :: Steps   a      ->  a
-eval (Step  n    l)     =   {- trace ("Step " ++ show n ++ "\n")-} (eval l)
-eval (Micro  _    l)    =   eval l
-eval (Fail   ss  ls  )  =   trace' ("expecting: " ++ show ss) (eval (getCheapest 3 (map ($ss) ls))) 
-eval (Apply  f   l   )  =   f (eval l)
-eval (End_f   _  _   )  =   error "dangling End_f constructor"
-eval (End_h   _  _   )  =   error "dangling End_h constructor"
-
-push        :: v -> Steps   r -> Steps   (v, r)
-push v      =  Apply (\ r -> (v, r))
-apply       :: Steps (b -> a, (b, r)) -> Steps (a, r)
-apply       =  Apply (\(b2a, ~(b, r)) -> (b2a b, r)) 
-pushapply   :: (b -> a) -> Steps (b, r) -> Steps (a, r)
-pushapply f = Apply (\ (b, r) -> (f b, r)) 
-
--- | @`norm`@ makes sure that the head of the seqeunce contains progress information. It does so by pushing information about the result (i.e. the @Apply@ steps) backwards.
---
-norm ::  Steps a ->  Steps   a
-norm     (Apply f (Step   p    l  ))   =   Step  p (Apply f l)
-norm     (Apply f (Micro  c    l  ))   =   Micro c (Apply f l)
-norm     (Apply f (Fail   ss   ls ))   =   Fail ss (applyFail (Apply f) ls)
-norm     (Apply f (Apply  g    l  ))   =   norm (Apply (f.g) l)
-norm     (Apply f (End_f  ss   l  ))   =   End_f (map (Apply f) ss) (Apply f l)
-norm     (Apply f (End_h  _    _  ))   =   error "Apply before End_h"
-norm     steps                         =   steps
-
-applyFail f  = map (\ g -> \ ex -> let (c, l) =  g ex in  (c, f l))
-
--- | The function @best@ compares two streams and best :: Steps   a -> Steps   a -> Steps   a
-x `best` y =   norm x `best'` norm y
-
-best' :: Steps   b -> Steps   b -> Steps   b
-Fail  sl  ll     `best'`  Fail  sr rr     =   Fail (sl ++ sr) (ll++rr)
-Fail  _   _      `best'`  r               =   r
-l                `best'`  Fail  _  _      =   l
-Step  n   l      `best'`  Step  m  r
-    | n == m                              =   Step n (l `best'` r)     
-    | n < m                               =   Step n (l  `best'`  Step (m - n)  r)
-    | n > m                               =   Step m (Step (n - m)  l  `best'` r)
-ls@(Step _  _)    `best'`  Micro _ _        =  ls
-Micro _    _      `best'`  rs@(Step  _ _)   =  rs
-ls@(Micro i l)    `best'`  rs@(Micro j r)  
-    | i == j                               =   Micro i (l `best'` r)
-    | i < j                                =   ls
-    | i > j                                =   rs
-End_f  as  l            `best'`  End_f  bs r          =   End_f (as++bs)  (l `best` r)
-End_f  as  l            `best'`  r                    =   End_f as        (l `best` r)
-l                       `best'`  End_f  bs r          =   End_f bs        (l `best` r)
-End_h  (as, k_h_st)  l  `best'`  End_h  (bs, _) r     =   End_h (as++bs, k_h_st)  (l `best` r)
-End_h  as  l            `best'`  r                    =   End_h as (l `best` r)
-l                       `best'`  End_h  bs r          =   End_h bs (l `best` r)
-l                       `best'`  r                    =   l `best` r 
-
--- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--- %%%%%%%%%%%%% getCheapest  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-getCheapest :: Int -> [(Int, Steps a)] -> Steps a 
-getCheapest _ [] = error "no correcting alternative found"
-getCheapest n l  =  snd $  foldr (\(w,ll) btf@(c, l)
-                               ->    if w < c   -- c is the best cost estimate thus far, and w total costs on this path
-                                     then let new = (traverse n ll w c) 
-                                          in if new < c then (new, ll) else btf
-                                     else btf 
-                               )   (maxBound, error "getCheapest") l
-
-
-traverse :: Int -> Steps a -> Int -> Int  -> Int 
-traverse 0  _                =  trace' ("traverse " ++ show 0 ++ "\n") (\ v c ->  v)
-traverse n (Step _   l)      =  trace' ("traverse Step   " ++ show n ++ "\n") (traverse (n -  1 ) l)
-traverse n (Micro _  l)      =  trace' ("traverse Micro  " ++ show n ++ "\n") (traverse n         l)
-traverse n (Apply _  l)      =  trace' ("traverse Apply  " ++ show n ++ "\n") (traverse n         l)
-traverse n (Fail m m2ls)     =  trace' ("traverse Fail   " ++ show n ++ "\n") (\ v c ->  foldr (\ (w,l) c' -> if v + w < c' then traverse (n -  1 ) l (v+w) c'
-                                                                                                           else c'
-                                                                                            ) c (map ($m) m2ls)
-                                                                    )
-traverse n (End_h ((a, lf))    r)  =  traverse n (lf a `best` removeEnd_h r)
-traverse n (End_f (l      :_)  r)  =  traverse n (l `best` r) 
-
--- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--- %%%%%%%%%%%%% Handling ambiguous paths             %%%%%%%%%%%%%%%%%%%
--- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-removeEnd_h     :: Steps (a, r) -> Steps r
-removeEnd_h (Fail  m ls             )  =   Fail m (applyFail removeEnd_h ls)
-removeEnd_h (Step  ps l             )  =   Step  ps (removeEnd_h l)
-removeEnd_h (Apply f l              )  =   error "not in history parsers"
-removeEnd_h (Micro c l              )  =   Micro c (removeEnd_h l)
-removeEnd_h (End_h  (as, k_st  ) r  )  =   k_st as `best` removeEnd_h r 
-
-removeEnd_f      :: Steps r -> Steps [r]
-removeEnd_f (Fail m ls)        =   Fail m (applyFail removeEnd_f ls)
-removeEnd_f (Step ps l)        =   Step ps (removeEnd_f l)
-removeEnd_f (Apply f l)        =   Apply (map' f) (removeEnd_f l) 
-                                   where map' f ~(x:xs)  =  f x : map f xs
-removeEnd_f (Micro c l      )  =   Micro c (removeEnd_f l)
-removeEnd_f (End_f(s:ss) r)    =   Apply  (:(map  eval ss)) s 
-                                                 `best`
-                                          removeEnd_f r
-
--- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--- %%%%%%%%%%%%% Auxiliary Functions and Types        %%%%%%%%%%%%%%%%%%%
--- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
--- * Auxiliary functions and types
--- ** Checking for non-sensical combinations: @`must_be_non_empty`@ and @`must_be_non_empties`@
--- | The function checks wehther its second argument is a parser which can recognise the mety sequence. If so an error message is given
---   using the name of the context. If not then the third argument is returned. This is useful in testing for loogical combinations. For its use see
---   the module Text>parserCombinators.UU.Derived
-
-must_be_non_empty :: [Char] -> P t t1 -> t2 -> t2
-must_be_non_empty msg p@(P _ _ Zero _) _ 
-            = error ("The combinator " ++ msg ++  " requires that it's argument cannot recognise the empty string\n")
-must_be_non_empty _ _  q  = q
-
--- | This function is similar to the above, but can be used in situations where we recognise a sequence of elements separated by other elements. This does not 
---   make sense if both parsers can recognise the empty string. Your grammar is then highly ambiguous.
-
-must_be_non_empties :: [Char] -> P t1 t -> P t3 t2 -> t4 -> t4
-must_be_non_empties  msg (P _ _ Zero _) (P _ _ Zero _ ) _ 
-            = error ("The combinator " ++ msg ++  " requires that not both arguments can recognise the empty string\n")
-must_be_non_empties  msg _  _ q = q
-
 
 -- ** The type @`Nat`@ for describing the minimal number of tokens consumed
 -- | The data type @`Nat`@ is used to represent the minimal length of a parser.
@@ -533,7 +357,25 @@ must_be_non_empties  msg _  _ q = q
 data Nat = Zero
          | Succ Nat
          | Infinite
-         deriving  Show
+         deriving  (Show, Eq)
+
+instance Num Nat  where
+    (+)            = nat_add
+                     where  nat_add Infinite  _ = trace' "Infinite in add\n" Infinite
+                            nat_add Zero      r = trace' "Zero in add\n"     r
+                            nat_add (Succ l)  r = trace' "Succ in add\n"     (Succ (nat_add l r))
+    (-)             = error "subtraction not defined for nat"
+    (*) Zero n      = n
+    (*) (Succ n) m  = n + n * m
+    (*) Infinite    = error "cannot multiply by Infinite Nat" 
+    negate          = error "negation not defined for nat"
+    abs n           = n
+    signum  Zero    = Zero
+    signum (Succ _) = Succ Zero
+    fromInteger n   = if n>0 then Succ (fromInteger (n-1)
+                      else if n==0 then Zero
+                           else " cannot make a natural number from a negative number"
+
 
 nat_min _          Zero      _  = trace' "Right Zero in nat_min\n"    (Zero, False)
 nat_min Zero       _         _  = trace' "Left Zero in nat_min\n"     (Zero, True)
@@ -542,11 +384,10 @@ nat_min l          Infinite  _  = trace' "Right Infinite in nat_min\n"    (l,   
 nat_min (Succ ll)  (Succ rr) n  = if n > 1000 then error "problem with comparing lengths" 
                                   else trace' ("Succ in nat_min " ++ show n ++ "\n")         (let (v, b) = nat_min ll  rr (n+1) in (Succ v, b))
 
-nat_add Infinite  _ = trace' "Infinite in add\n" Infinite
-nat_add Zero      r = trace' "Zero in add\n"     r
-nat_add (Succ l)  r = trace' "Succ in add\n"     (Succ (nat_add l r))
 
-get_length (P _ _  l _) = l
+
+get_length  (P _ _  l _) = l
+set_length ~(P a n _  e) l = P a n l e  
 
 trace' m v = {- trace m -} v 
 

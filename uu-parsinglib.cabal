@@ -27,10 +27,18 @@ Description:         New version of the Utrecht University parser combinator lib
                      .
 Category:            Parsing
 
+Flag TRACEEVAL
+  Description: traces the steps encountered while inspecting the stream of steps
+  Default: False
+
+Flag TRACETRAVERSE
+  Description: traces the traversal of the looakahed process when looking for best way to proceed at error
+  Default: False
+
 Library
   hs-source-dirs:    src
-
   Build-Depends:     base >= 4.2 && <5, haskell98
+  Extensions: CPP
   Exposed-modules:   Text.ParserCombinators.UU
                      Text.ParserCombinators.UU.CHANGELOG
                      Text.ParserCombinators.UU.README
