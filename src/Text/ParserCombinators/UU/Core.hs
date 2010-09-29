@@ -107,6 +107,7 @@ getOneP (P _ onep      l    ep )   =  Just( P (mkParser onep Nothing)  onep l No
 getZeroP (P _ _ l Nothing)         =  Nothing
 getZeroP (P _ _ l pe)              =  Just (P (mkParser Nothing pe) Nothing l pe) -- TODO check for erroneous parsers
 
+mkParser :: Maybe (T st a) -> Maybe a -> T st a
 mkParser np@Nothing   ne@Nothing   =  empty           
 mkParser np@(Just nt) ne@Nothing   =  nt              
 mkParser np@Nothing   ne@(Just a)  =          (pure a)        
@@ -169,6 +170,7 @@ instance   Alternative (P   state) where
 instance ExtAlternative (P st) where
   P ap np pl pe <<|> P aq nq ql qe 
     = let (rl, b) = nat_min pl ql 0
+          bestx :: Steps a -> Steps a -> Steps a
           bestx = if b then flip best else best
           choose:: T st a -> T st a -> T st a
           choose  (T ph pf pr)  (T qh qf qr) 
@@ -255,6 +257,7 @@ P  _  np  pl pe <?> label
               Just ((T ph pf  pr)) -> Just(T ( \ k inp -> replaceExpected (norm  ( ph k inp)))
                                              ( \ k inp -> replaceExpected (norm  ( pf k inp)))
                                              ( \ k inp -> replaceExpected (norm  ( pr k inp))))
+        replaceExpected :: Steps a -> Steps a
         replaceExpected (Fail _ c) = (Fail [label] c)
         replaceExpected others     = others
     in P (mkParser nnp  pe) nnp pl pe
@@ -430,7 +433,8 @@ norm     steps                         =   steps
 
 applyFail f  = map (\ g -> \ ex -> let (c, l) =  g ex in  (c, f l))
 
--- | The function @best@ compares two streams and best :: Steps   a -> Steps   a -> Steps   a
+-- | The function @best@ compares two streams
+best :: Steps a -> Steps a -> Steps a
 x `best` y =   norm x `best'` norm y
 
 best' :: Steps   b -> Steps   b -> Steps   b
@@ -538,6 +542,7 @@ data Nat = Zero
          | Infinite
          deriving  Show
 
+nat_min :: Nat -> Nat -> Int -> (Nat, Bool)
 nat_min _          Zero      _  = trace' "Right Zero in nat_min\n"    (Zero, False)
 nat_min Zero       _         _  = trace' "Left Zero in nat_min\n"     (Zero, True)
 nat_min Infinite   r         _  = trace' "Left Infinite in nat_min\n" (r,    False) 
