@@ -26,9 +26,10 @@ instance (Show pos) => Show (Error  pos) where
  show (Deleted  t pos expecting) = "-- >    Deleted  " ++  t ++ " at position " ++ show pos ++  show_expecting  expecting 
  show (DeletedAtEnd t)           = "-- >    The token " ++ t ++ " was not consumed by the parsing process."
 
+show_errors :: (Show a) => [a] -> IO ()
 show_errors = sequence_ . (map (putStrLn . show))
 
-
+show_expecting :: [String] -> String
 show_expecting [a]    = " expecting " ++ a
 show_expecting (a:as) = " expecting one of [" ++ a ++ concat (map (", " ++) as) ++ "]"
 show_expecting []     = " expecting nothing"
@@ -38,6 +39,7 @@ data Str     t  loc  = Str   {  input    :: [t]
                              ,  pos      :: loc
                              ,  deleteOk :: !Bool}
 
+listToStr :: [t] -> loc -> Str t loc
 listToStr ls initloc = Str   ls  []  initloc  True
 
 type Parser a = P (Str Char (Int,Int)) a 
@@ -115,12 +117,18 @@ instance (Show a, Eq a, loc `IsLocationUpdatedBy` [a]) => Provides (Str a loc) (
           Just rest -> show_tokens ("Accepting token: " ++ show as ++"\n") 
                        (Step l (k as (Str rest msgs (advance pos as) True)))
 
+pToken :: (Provides state (Token a) token) => [a] -> P state token
 pToken     as   =   pTokenCost as 5
 pTokenCost as c =   if null as then error "call to pToken with empty token"
                     else pSymExt (length as) Nothing (Token as c)
                     where length [] = Zero
                           length (_:as) = Succ (length as)
 
+show_tokens :: a -> b -> b
 show_tokens m v = {-  trace m  -} v
+
+show_munch :: a -> b -> b
 show_munch  m v = {-  trace m  -} v
+
+show_symbol :: a -> b -> b
 show_symbol m v = {-  trace m  -} v

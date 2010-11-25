@@ -167,6 +167,7 @@ instance Functor Freq where
    fmap f (Opt           p)    = Opt         (f p)
    fmap f (Never         p)    = Never       (f p)
 
+canBeEmpty :: Freq t -> Bool
 canBeEmpty (AtLeast _    p)  = False
 canBeEmpty (AtMost  _    p)  = True
 canBeEmpty (Between n m  p)  = if n==0 then error "wrong use of Between" else False -- safety check
@@ -196,6 +197,7 @@ toParser alts  units  =  let palts = [p <*> toParser  ps units | (p,ps) <- split
                             then foldr (<|>) units palts
                             else foldr1 (<|>) palts
 
+toParserSep :: [Freq (P st (b -> b))] -> P st a -> P st b -> P st b
 toParserSep alts sep  units  =  let palts = [p <*> toParser  (map (fmap (sep *>)) ps) units | (p,ps) <- split alts id]
                                 in if   and (map canBeEmpty alts) 
                                    then foldr  (<|>) units palts
@@ -212,6 +214,9 @@ MergeSpec (pe, pp, punp) <||> MergeSpec (qe, qp, qunp)
              , map (fmap (mapFst <$>)) pp ++  map (fmap (mapSnd <$>)) qp
              , \f (x, y) -> qunp (punp f x) y
              )
+
+pSem :: t -> MergeSpec (t1, t2, t -> t3 -> t4)
+          -> MergeSpec (t1, t2, (t4 -> t5) -> t3 -> t5)
 f `pSem` MergeSpec (units, alts, unp) = MergeSpec  (units, alts, \ g arg -> g ( unp f arg))
 
 pMerge ::  c -> MergeSpec (d, [Freq (P st (d -> d))], c -> d -> e) -> P st e
@@ -220,21 +225,37 @@ sem `pMerge` MergeSpec (units, alts, unp) =  unp sem <$> toParser alts (pure uni
 pMergeSep ::  (c, P st a)  -> MergeSpec (d, [Freq (P st (d -> d))], c -> d -> e) -> P st e
 (sem, sep) `pMergeSep` MergeSpec (units, alts, unp) =  unp sem <$> toParserSep alts sep (pure units)
 
+pBetween :: Int -> Int -> P t t1 -> MergeSpec ([a], [Freq (P t ([t1] -> [t1]))], a1 -> a1)
 pBetween  n m p = must_be_non_empty "pOpt"  p 
                  (if m <n || m <= 0 then         (MergeSpec ([]       ,[                           ], id)) 
                   else if n==0 then              (MergeSpec ([]       ,[AtMost  m     ((:)   <$> p)], id)) 
                   else                           (MergeSpec ([]       ,[Between n m   ((:)   <$> p)], id)))
+
+pAtMost :: Int -> P t t1 -> MergeSpec ([a], [Freq (P t ([t1] -> [t1]))], a1 -> a1)
 pAtMost   n   p = must_be_non_empty "pOpt"  p
                  (if n <= 0         then         (MergeSpec ([]       ,[                           ], id))
                                     else         (MergeSpec ([]       ,[AtMost  n     ((:)   <$> p)], id)))
+
+pAtLeast :: Int -> P t t1 -> MergeSpec ([a], [Freq (P t ([t1] -> [t1]))], a1 -> a1)
 pAtLeast  n   p = must_be_non_empty "pOpt"  p
                  (if n <= 0         then         (MergeSpec ([]       ,[Many          ((:)   <$> p)], id))
                                     else         (MergeSpec ([]       ,[AtLeast n     ((:)   <$> p)], id)))
+
+pMany :: P t t1 -> MergeSpec ([a], [Freq (P t ([t1] -> [t1]))], a1 -> a1)
 pMany p        = must_be_non_empty "pMany" p     (MergeSpec ([]       ,[Many          ((:)   <$> p)], id))
+
+pOpt :: P t t1 -> t11 -> MergeSpec (t11, [Freq (P t (b -> t1))], a -> a)
 pOpt  p v      = must_be_non_empty "pOpt"  p     (MergeSpec (v        ,[Opt           (const <$> p)], id))
+
+pSome :: P t t1 -> MergeSpec ([a], [Freq (P t ([t1] -> [t1]))], a1 -> a1)
 pSome p        = must_be_non_empty "pSome" p     (MergeSpec ([]       ,[AtLeast 1     ((:)   <$> p)], id))
+
+pOne :: P t t1 -> MergeSpec (a, [Freq (P t (b -> t1))], a1 -> a1)
 pOne  p        = must_be_non_empty "pOne"  p     (MergeSpec (undefined,[One           (const <$> p)], id))
 
+mapFst :: (t -> t2) -> (t, t1) -> (t2, t1)
 mapFst f (a, b) = (f a, b)
+
+mapSnd :: (t1 -> t2) -> (t, t1) -> (t, t2)
 mapSnd f (a, b) = (a, f b)
 

@@ -1,5 +1,13 @@
 -- | This module just contains the CHANGELOG
--- Version 2.5.5
+-- Version 2.5.5.2
+--
+--      *  type signatures were added to make Haddock happy
+--
+-- Version 2.5.5.1
+--
+--      *  type signatures were added to make the library GHC 7 ready.
+--
+---- Version 2.5.5
 --
 --      *  preference is given to earlier accept steps in order to avoid infinite insertions in case of otherwise equivalent repair strategies
 --

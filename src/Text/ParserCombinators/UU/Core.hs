@@ -101,9 +101,12 @@ data  P   st  a =  P  (T  st a)         --   actual parsers
 instance Show (P st a) where
   show (P _ nt n e) = "P _ " ++ maybe "Nothing" (const "(Just _)") nt ++ " (" ++ show n ++ ") " ++ maybe "Nothing" (const "(Just _)") e
 
+getOneP :: P a b -> Maybe (P a b)
 getOneP (P _ (Just _)  Zero _ )    =  error "The element is a special parser which cannot be combined"
 getOneP (P _ Nothing   l    _ )    =  Nothing
 getOneP (P _ onep      l    ep )   =  Just( P (mkParser onep Nothing)  onep l Nothing)
+
+getZeroP :: P t a -> Maybe (P st a)
 getZeroP (P _ _ l Nothing)         =  Nothing
 getZeroP (P _ _ l pe)              =  Just (P (mkParser Nothing pe) Nothing l pe) -- TODO check for erroneous parsers
 
@@ -114,6 +117,8 @@ mkParser np@Nothing   ne@(Just a)  =          (pure a)
 mkParser np@(Just nt) ne@(Just a)  =  (nt <|> pure a) 
 
 -- combine creates the non-empty parser 
+combine :: (Alternative f) => Maybe t1 -> Maybe t2 -> t -> Maybe t3
+        -> (t1 -> t -> f a) -> (t2 -> t3 -> f a) -> Maybe (f a)
 combine Nothing   Nothing  _  _     _   _   = Nothing      -- this Parser always fails
 combine (Just p)  Nothing  aq _     op1 op2 = Just (p `op1` aq) 
 combine (Just p)  (Just v) aq nq    op1 op2 = case nq of
@@ -218,8 +223,13 @@ pSym  s   = pSymExt (Succ Zero) Nothing s
 -- %%%%%%%%%%%%% Monads      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+unParser_h :: P b a -> (a -> b -> Steps r) -> b -> Steps r
 unParser_h (P (T  h   _  _ ) _ _ _ )  =  h
+
+unParser_f :: P b a -> (b -> Steps r) -> b -> Steps (a, r)
 unParser_f (P (T  _   f  _ ) _ _ _ )  =  f
+
+unParser_r :: P b a -> (b -> Steps r) -> b -> Steps r
 unParser_r (P (T  _   _  r ) _ _ _ )  =  r
           
 -- !! do not move the P constructor behind choices/patern matches
@@ -394,10 +404,16 @@ data  Steps   a  where
       End_h  ::                 ([a] , [a]     ->  Steps r)    ->  Steps   (a,r)       -> Steps   (a, r)
       End_f  ::                 [Steps   a]    ->  Steps   a                           -> Steps   a
 
+succeedAlways :: Steps a
 succeedAlways = let steps = Step 0 steps in steps
+
+failAlways :: Steps a
 failAlways  =  Fail [] [const (0, failAlways)]
+
+noAlts :: Steps a
 noAlts      =  Fail [] []
 
+has_success :: Steps t -> Bool
 has_success (Step _ _) = True
 has_success _        = False 
 
@@ -415,8 +431,10 @@ eval (End_h   _  _   )  =   error "dangling End_h constructor"
 
 push        :: v -> Steps   r -> Steps   (v, r)
 push v      =  Apply (\ r -> (v, r))
+
 apply       :: Steps (b -> a, (b, r)) -> Steps (a, r)
 apply       =  Apply (\(b2a, ~(b, r)) -> (b2a b, r)) 
+
 pushapply   :: (b -> a) -> Steps (b, r) -> Steps (a, r)
 pushapply f = Apply (\ (b, r) -> (f b, r)) 
 
@@ -431,6 +449,7 @@ norm     (Apply f (End_f  ss   l  ))   =   End_f (map (Apply f) ss) (Apply f l)
 norm     (Apply f (End_h  _    _  ))   =   error "Apply before End_h"
 norm     steps                         =   steps
 
+applyFail :: (c -> d) -> [a -> (b, c)] -> [a -> (b, d)]
 applyFail f  = map (\ g -> \ ex -> let (c, l) =  g ex in  (c, f l))
 
 -- | The function @best@ compares two streams
@@ -485,6 +504,7 @@ traverse n (Fail m m2ls) v c  =  trace' ("traverse Fail   " ++ show m ++ show' n
 traverse n (End_h ((a, lf))    r)  v c =  traverse n (lf a `best` removeEnd_h r) v c
 traverse n (End_f (l      :_)  r)  v c =  traverse n (l `best` r) v c
 
+show' :: (Show a, Show b, Show c) => a -> b -> c -> String
 show' n v c = "n: " ++ show n ++ " v: " ++ show v ++ " c: " ++ show c
 
 
@@ -550,12 +570,15 @@ nat_min l          Infinite  _  = trace' "Right Infinite in nat_min\n"    (l,   
 nat_min (Succ ll)  (Succ rr) n  = if n > 1000 then error "problem with comparing lengths" 
                                   else trace' ("Succ in nat_min " ++ show n ++ "\n")         (let (v, b) = nat_min ll  rr (n+1) in (Succ v, b))
 
+nat_add :: Nat -> Nat -> Nat
 nat_add Infinite  _ = trace' "Infinite in add\n" Infinite
 nat_add Zero      r = trace' "Zero in add\n"     r
 nat_add (Succ l)  r = trace' "Succ in add\n"     (Succ (nat_add l r))
 
+get_length :: P a b -> Nat
 get_length (P _ _  l _) = l
 
+trace' :: a -> b -> b
 trace' m v = {-  trace m  -} v 
 
 
