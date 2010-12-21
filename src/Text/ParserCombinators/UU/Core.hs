@@ -18,7 +18,7 @@ import Maybe
 
 infix   2  <?>    -- should be the last element in a sequence of alternatives
 infixl  3  <<|>   -- intended use p <<|> q <<|> r <|> x <|> y <?> z
-
+infixl  3  <-|->  -- an alternative for <|> which does not compare the lengths, to be used in permutation parsers
 
 -- ** `Provides'
 
@@ -43,8 +43,10 @@ class Show loc => loc `IsLocationUpdatedBy` str where
 
 --  ** An extension to @`Alternative`@ which indicates a biased choice
 -- | In order to be able to describe greedy parsers we introduce an extra operator, whch indicates a biased choice
-class ExtAlternative p where
-  (<<|>) :: p a -> p a -> p a
+class (Alternative p) => ExtAlternative p where
+  (<<|>)  :: p a -> p a -> p a
+  (<-|->) :: p a -> p a -> p a
+  (<-|->) = (<|>)
      
 
 -- * The  triples containg a  history, a future parser and a recogniser: @`T`@
@@ -166,7 +168,7 @@ instance   Alternative (P   state) where
        in  let nnp =  (if b then (nq `alt` np) else (np `alt` nq))
                nep =  if b then trace' "calling pe" pe else trace' "calling qe" qe 
            in  P (mkParser nnp nep) nnp rl nep
-  empty  =  P  empty empty  Infinite Nothing
+  empty  =  P  empty empty  Infinite Nothing -- the always failing parser!
 
 -- ** An alternative for the Alternative, which is greedy:  @`<<|>`@
 -- | `<<|>` is the greedy version of `<|>`. If its left hand side parser can make some progress that alternative is committed. Can be used to make parsers faster, and even
@@ -189,6 +191,13 @@ instance ExtAlternative (P st) where
              (maybe np (\nqq -> maybe nq (\npp -> return( choose  npp nqq)) np) nq)
              rl
              (pe <|> qe) -- due to the way Maybe is instance of Alternative  the left hand operator gets priority
+  P ap np  pl pe <-|-> P aq nq ql qe 
+    =  let Nothing `alt` q  = q
+           p       `alt` Nothing = p
+           Just p  `alt` Just q  = Just (p <|>q)
+       in  let nnp =  np `alt` nq
+               nep =  pe <|> qe
+           in  P (mkParser nnp nep) nnp pl nep
 
 -- ** Parsers can recognise single tokens:  @`pSym`@ and  @`pSymExt`@
 --   Many parsing libraries do not make a distinction between the terminal symbols of the language recognised 
@@ -578,8 +587,8 @@ nat_add (Succ l)  r = trace' "Succ in add\n"     (Succ (nat_add l r))
 get_length :: P a b -> Nat
 get_length (P _ _  l _) = l
 
-trace' :: a -> b -> b
-trace' m v = {-  trace m  -} v 
+trace' :: String -> b -> b
+trace' m v = {- trace m -}  v 
 
 
 

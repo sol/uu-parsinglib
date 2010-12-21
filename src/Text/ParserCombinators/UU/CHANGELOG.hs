@@ -1,4 +1,8 @@
 -- | This module just contains the CHANGELOG
+-- Version 2.5.6
+--
+--      *  added a special version of \<|\> (called '<-|->') in @ExtAlternative@ which does not compare the length of the parsers; to be used in permutations
+--
 -- Version 2.5.5.2
 --
 --      *  type signatures were added to make Haddock happy
@@ -7,7 +11,7 @@
 --
 --      *  type signatures were added to make the library GHC 7 ready.
 --
----- Version 2.5.5
+-- Version 2.5.5
 --
 --      *  preference is given to earlier accept steps in order to avoid infinite insertions in case of otherwise equivalent repair strategies
 --

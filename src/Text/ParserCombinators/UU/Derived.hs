@@ -190,18 +190,26 @@ split (x:xs) f = oneAlt (x, f xs): split xs (f.(x:))
                        oneAlt  (Many        p, others)   = (p, Many                p : others)
                        oneAlt  (Opt         p, others)   = (p,                         others)
 
+toParser' :: [ Freq (P st (d -> d)) ]  -> P st (d -> d)
+toParser' []      =  pure id
+toParser' alts    =  let palts = [(.) <$> p <*> toParser'  ps  | (p,ps) <- split alts id]
+                     in if and (map canBeEmpty alts) 
+                        then foldr (<|>) (pure id) palts
+                        else foldr1 (<|>) palts
+
 toParser :: [ Freq (P st (d -> d)) ] -> P st d -> P st d
 toParser []    units  =  units
 toParser alts  units  =  let palts = [p <*> toParser  ps units | (p,ps) <- split alts id]
                          in if and (map canBeEmpty alts) 
-                            then foldr (<|>) units palts
-                            else foldr1 (<|>) palts
+                            then foldr (<-|->) units palts
+                            else foldr1 (<-|->) palts
+
 
 toParserSep :: [Freq (P st (b -> b))] -> P st a -> P st b -> P st b
 toParserSep alts sep  units  =  let palts = [p <*> toParser  (map (fmap (sep *>)) ps) units | (p,ps) <- split alts id]
                                 in if   and (map canBeEmpty alts) 
-                                   then foldr  (<|>) units palts
-                                   else foldr1 (<|>) palts
+                                   then foldr  (<-|->) units palts
+                                   else foldr1 (<-|->) palts
 
 newtype MergeSpec p = MergeSpec p
 

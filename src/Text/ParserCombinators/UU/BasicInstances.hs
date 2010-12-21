@@ -54,7 +54,8 @@ instance IsLocationUpdatedBy (Int,Int) String where
 
 instance (Show a,  loc `IsLocationUpdatedBy` a) => Provides  (Str  a loc)  (a -> Bool, String, a)  a where
        splitState (p, msg, a) k (Str  tts   msgs pos  del_ok) 
-          = let ins exp =       (5, k a (Str tts (msgs ++ [Inserted (show a)  pos  exp]) pos  False))
+          = show_attempt ("Try Predicate: " ++ msg ++ "\n") (
+            let ins exp =       (5, k a (Str tts (msgs ++ [Inserted (show a)  pos  exp]) pos  False))
                 del exp =       (5, splitState (p,msg, a) 
                                     k
                                     (Str (tail tts) 
@@ -67,6 +68,7 @@ instance (Show a,  loc `IsLocationUpdatedBy` a) => Provides  (Str  a loc)  (a ->
                                  (Step 1 (k t (Str ts msgs (advance pos t) True)))
                            else  Fail [msg] (ins: if del_ok then [del] else [])
                []      ->  Fail [msg] [ins]
+            )
 
 instance (Ord a, Show a, loc `IsLocationUpdatedBy`  a) => Provides  (Str  a loc)  (a,a)  a where
        splitState a@(low, high) = splitState (\ t -> low <= t && t <= high, show low ++ ".." ++ show high, low)
@@ -92,11 +94,13 @@ data Munch a = Munch (a -> Bool) String
 
 instance (Show a, loc `IsLocationUpdatedBy` [a]) => Provides (Str a loc) (Munch a) [a] where 
        splitState (Munch p x) k inp@(Str tts msgs pos del_ok)
-          =    let (munched, rest) = span p tts
+          =    show_attempt ("Try Munch: " ++ x ++ "\n") (
+               let (munched, rest) = span p tts
                    l               = length munched
                in if l > 0 then show_munch ("Accepting munch: " ++ x ++ " " ++ show munched ++  show pos ++ "\n") 
                                 (Step l (k munched (Str rest msgs (advance pos munched)  (l>0 || del_ok))))
-                           else show_munch ("Accepting munch: " ++ x ++ " " ++ show munched ++ show pos ++ "\n") (k [] inp)
+                           else show_munch ("Accepting munch: " ++ x ++ " as emtty munch " ++ show pos ++ "\n") (k [] inp)
+               )
 
 pMunch :: (Provides st (Munch a) [a]) => (a -> Bool) -> P st [a]
 pMunch  p   = pSymExt Zero Nothing  (Munch p "") -- the empty case is handled above
@@ -109,13 +113,15 @@ instance (Show a, Eq a, loc `IsLocationUpdatedBy` [a]) => Provides (Str a loc) (
   splitState tok@(Token  as cost) k (Str tts msgs pos del_ok)
    =  let l = length as
           msg = show as 
-      in  case stripPrefix as tts of
+      in  show_attempt ("Try Token: " ++ show as ++ "\n") (
+          case stripPrefix as tts of
           Nothing  ->  let ins exp =  (cost, k as             (Str tts         (msgs ++ [Inserted msg               pos  exp])   pos    False))
                            del exp =  (5,    splitState tok k (Str (tail tts)  (msgs ++ [Deleted  (show(head tts))  pos  exp])  (advance pos [(head tts)]) True ))
                        in if null tts then  Fail [msg] [ins]
                                       else  Fail [msg] (ins: if del_ok then [del] else [])
           Just rest -> show_tokens ("Accepting token: " ++ show as ++"\n") 
                        (Step l (k as (Str rest msgs (advance pos as) True)))
+          )
 
 pToken :: (Provides state (Token a) token) => [a] -> P state token
 pToken     as   =   pTokenCost as 5
@@ -124,11 +130,13 @@ pTokenCost as c =   if null as then error "call to pToken with empty token"
                     where length [] = Zero
                           length (_:as) = Succ (length as)
 
-show_tokens :: a -> b -> b
-show_tokens m v = {-  trace m  -} v
+show_tokens :: String -> b -> b
+show_tokens m v =   {- trace m -}  v
 
-show_munch :: a -> b -> b
-show_munch  m v = {-  trace m  -} v
+show_munch :: String -> b -> b
+show_munch  m v =   {- trace m -}  v
 
-show_symbol :: a -> b -> b
-show_symbol m v = {-  trace m  -} v
+show_symbol :: String -> b -> b
+show_symbol m v =  {-  trace m -}  v
+
+show_attempt m v = {- trace m -} v
