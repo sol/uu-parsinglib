@@ -10,7 +10,7 @@
 --   Only the @`run`@ function is exported since it may come in handy elsewhere.
 
 module Text.ParserCombinators.UU.Examples (run, demo) where
-import Char
+import Data.Char
 import Text.ParserCombinators.UU
 import Text.ParserCombinators.UU.BasicInstances.String
 import System.IO

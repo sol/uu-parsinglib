@@ -18,6 +18,11 @@
 --
 --      * To work with other inputs, import "Text.ParserCombinators.UU.BasicInstances.List", "Text.ParserCombinators.UU.BasicInstances.Text", "Text.ParserCombinators.UU.BasicInstances.ByteString" or "Text.ParserCombinators.UU.BasicInstances.ByteString.Lazy".
 --
+--
+-- Version 2.5.6.1
+--
+--      *  replaced references to modules with references in the new library scheme
+--
 -- Version 2.5.6
 --
 --      *  added a special version of \<|\> (called '<-|->') in @ExtAlternative@ which does not compare the length of the parsers; to be used in permutations

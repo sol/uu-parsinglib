@@ -213,9 +213,9 @@ toParserSep alts sep  units  =  let palts = [p <*> toParser  (map (fmap (sep *>)
 
 newtype MergeSpec p = MergeSpec p
 
-(<||>) ::  MergeSpec (c,     [Freq (P st (d     -> d)    )],  e -> f     -> g) 
-        -> MergeSpec (h,     [Freq (P st (i     -> i)    )],  g -> j     -> k) 
-        -> MergeSpec ((c,h), [Freq (P st ((d,i) -> (d,i)))],  e -> (f,j) -> k)
+(<||>) ::  MergeSpec (d,     [Freq (P st (d     -> d)    )],  e -> d     -> g) 
+        -> MergeSpec (i,     [Freq (P st (i     -> i)    )],  g -> i     -> k) 
+        -> MergeSpec ((d,i), [Freq (P st ((d,i) -> (d,i)))],  e -> (d,i) -> k)
 
 MergeSpec (pe, pp, punp) <||> MergeSpec (qe, qp, qunp)
  = MergeSpec ( (pe, qe)

@@ -130,7 +130,7 @@ pMunchL p l = pSymExt Zero Nothing  (Munch p l) -- the empty case is handled abo
 
 data Token a = Token [a] Int -- the Int value represents the cost for inserting such a token
 
-instance (Show a, Eq a, loc `IsLocationUpdatedBy` [a], Stream s a) => Provides (Str a s loc) (Token a) [a] where 
+instance (Show a, Eq a, loc `IsLocationUpdatedBy` a, Stream s a) => Provides (Str a s loc) (Token a) [a] where 
   splitState tok@(Token  as cost) k (Str tts msgs pos del_ok)
    =  let l = length as
           msg = show as 

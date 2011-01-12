@@ -11,9 +11,9 @@
 module Text.ParserCombinators.UU.Core ( module Text.ParserCombinators.UU.Core
                                       , module Control.Applicative) where
 import Control.Applicative  hiding  (many, some, optional)
-import Char
+import Data.Char
 import Debug.Trace
-import Maybe
+import Data.Maybe
 
 
 infix   2  <?>    -- should be the last element in a sequence of alternatives
