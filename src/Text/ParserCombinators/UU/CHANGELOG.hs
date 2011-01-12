@@ -1,4 +1,23 @@
 -- | This module just contains the CHANGELOG
+--
+-- Version 2.6.1
+--
+--      * Changed the input to a @Stream@ interface to handle different kind of inputs like @String@, @Data.Text@ and @Data.ByteString@.
+--
+--      * To update old code to the new interface you should add
+--
+-- > import Text.ParserCombinators.UU.BasicInstances.String
+--
+-- in the file header and change
+--
+-- > listToStr inp (0,0)
+--
+-- to
+--
+-- > createStr inp
+--
+--      * To work with other inputs, import "Text.ParserCombinators.UU.BasicInstances.List", "Text.ParserCombinators.UU.BasicInstances.Text", "Text.ParserCombinators.UU.BasicInstances.ByteString" or "Text.ParserCombinators.UU.BasicInstances.ByteString.Lazy".
+--
 -- Version 2.5.6
 --
 --      *  added a special version of \<|\> (called '<-|->') in @ExtAlternative@ which does not compare the length of the parsers; to be used in permutations

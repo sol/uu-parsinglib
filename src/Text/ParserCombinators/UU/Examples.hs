@@ -11,9 +11,8 @@
 
 module Text.ParserCombinators.UU.Examples (run, demo) where
 import Char
-import Text.ParserCombinators.UU.Core
-import Text.ParserCombinators.UU.BasicInstances
-import Text.ParserCombinators.UU.Derived
+import Text.ParserCombinators.UU
+import Text.ParserCombinators.UU.BasicInstances.String
 import System.IO
 import GHC.IO.Handle.Types
 
@@ -21,7 +20,7 @@ import GHC.IO.Handle.Types
 
 -- | The fuction @`run`@ runs the parser and shows both the result, and the correcting steps which were taken during the parsing process.
 run :: Show t =>  Parser t -> String -> IO ()
-run p inp = do  let r@(a, errors) =  parse ( (,) <$> p <*> pEnd) (listToStr inp (0,0))
+run p inp = do  let r@(a, errors) =  parse ( (,) <$> p <*> pEnd) (createStr inp)
                 putStrLn "--"
                 putStrLn ("-- > Result: " ++ show a)
                 if null errors then  return ()

@@ -1,5 +1,5 @@
 Name:                uu-parsinglib
-Version:             2.5.6
+Version:             2.6.1
 Build-Type:          Simple
 License:             MIT
 Copyright:           S Doaitse Swierstra 
@@ -31,12 +31,17 @@ Category:            Parsing Text
 Library
   hs-source-dirs:    src
 
-  Build-Depends:     base >= 4.2 && <5, haskell98
+  Build-Depends:     base >= 4.2 && <5, haskell98, text, bytestring
   Exposed-modules:   Text.ParserCombinators.UU
                      Text.ParserCombinators.UU.CHANGELOG
                      Text.ParserCombinators.UU.README
                      Text.ParserCombinators.UU.Core  
                      Text.ParserCombinators.UU.BasicInstances
+                     Text.ParserCombinators.UU.BasicInstances.List
+                     Text.ParserCombinators.UU.BasicInstances.String
+                     Text.ParserCombinators.UU.BasicInstances.Text
+                     Text.ParserCombinators.UU.BasicInstances.ByteString
+                     Text.ParserCombinators.UU.BasicInstances.ByteString.Lazy
                      Text.ParserCombinators.UU.Derived
                      Text.ParserCombinators.UU.Examples
 
