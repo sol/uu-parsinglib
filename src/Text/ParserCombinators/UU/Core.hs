@@ -22,7 +22,8 @@ infixl  3  <-|->  -- an alternative for <|> which does not compare the lengths, 
 
 -- ** `Provides'
 
--- | The function `splitState` playes a crucial role in splitting up the state. The `symbol` parameter tells us what kind of thing, and even which value of that kind, is expected from the input.
+-- | The function `splitState` playes a crucial role in splitting up the state. 
+--   The `symbol` parameter tells us what kind of thing, and even which value of that kind, is expected from the input.
 --   The state  and  and the symbol type together determine what kind of token has to be returned. Since the function is overloaded we do not have to invent 
 --   all kind of different names for our elementary parsers.
 class  Provides state symbol token | state symbol -> token  where
@@ -171,8 +172,8 @@ instance   Alternative (P   state) where
   empty  =  P  empty empty  Infinite Nothing -- the always failing parser!
 
 -- ** An alternative for the Alternative, which is greedy:  @`<<|>`@
--- | `<<|>` is the greedy version of `<|>`. If its left hand side parser can make some progress that alternative is committed. Can be used to make parsers faster, and even
---   get a complete Parsec equivalent behaviour, with all its (dis)advantages. use with are!
+-- | `<<|>` is the greedy version of `<|>`. If its left hand side parser can make any progress that alternative is committed. 
+-- Can be used to make parsers faster, and even get a complete Parsec equivalent behaviour, with all its (dis)advantages. Use with are!
 
 instance ExtAlternative (P st) where
   P ap np pl pe <<|> P aq nq ql qe 
@@ -409,7 +410,7 @@ data  Steps   a  where
       Step   ::                 Progress       ->  Steps a                             -> Steps   a
       Apply  ::  forall a b.    (b -> a)       ->  Steps   b                           -> Steps   a
       Fail   ::                 Strings        ->  [Strings   ->  (Cost , Steps   a)]  -> Steps   a
-      Micro   ::                 Cost           ->  Steps a                             -> Steps   a
+      Micro   ::                Cost           ->  Steps a                             -> Steps   a
       End_h  ::                 ([a] , [a]     ->  Steps r)    ->  Steps   (a,r)       -> Steps   (a, r)
       End_f  ::                 [Steps   a]    ->  Steps   a                           -> Steps   a
 
@@ -441,11 +442,8 @@ eval (End_h   _  _   )  =   error "dangling End_h constructor"
 push        :: v -> Steps   r -> Steps   (v, r)
 push v      =  Apply (\ r -> (v, r))
 
-apply       :: Steps (b -> a, (b, r)) -> Steps (a, r)
-apply       =  Apply (\(b2a, ~(b, r)) -> (b2a b, r)) 
-
-pushapply   :: (b -> a) -> Steps (b, r) -> Steps (a, r)
-pushapply f = Apply (\ (b, r) -> (f b, r)) 
+apply2fst   :: (b -> a) -> Steps (b, r) -> Steps (a, r)
+apply2fst f = Apply (\ (b, r) -> (f b, r)) 
 
 -- | @`norm`@ makes sure that the head of the seqeunce contains progress information. It does so by pushing information about the result (i.e. the @Apply@ steps) backwards.
 --

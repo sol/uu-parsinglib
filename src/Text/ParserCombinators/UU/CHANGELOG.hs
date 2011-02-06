@@ -25,7 +25,8 @@
 --
 -- Version 2.5.6
 --
---      *  added a special version of \<|\> (called '<-|->') in @ExtAlternative@ which does not compare the length of the parsers; to be used in permutations
+--      *  added a special version of \<|\> (called '<-|->') in @ExtAlternative@ which does not compare the 
+--          length of the parsers; to be used in permutations
 --
 -- Version 2.5.5.2
 --
