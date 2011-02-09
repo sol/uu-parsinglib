@@ -372,10 +372,9 @@ pExactly n p | n==0 = pure []
 pOne p = p
 pSem = ($)
 
-gram p = Gram [Elem p] Nothing
-pa' = gram pa
-pb' = gram pb
-pc' = gram pc
+pa' = mkGram pa
+pb' = mkGram pb
+pc' = mkGram pc
 
 -- | For documentation of @`pMerge`@ and @`<||>`@ see the module "Text.ParserCombinators.UU.Merge". Here we just give a @deno_merge@, which
 --   should speak for itself. Make sure your parsers are not getting ambiguous. This soon gets very expensive.

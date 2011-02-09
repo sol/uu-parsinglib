@@ -1,51 +1,53 @@
-{-# LANGUAGE GADTs,
-             KindSignatures, 
-             FlexibleContexts,
-             LiberalTypeSynonyms #-}
+{-# LANGUAGE ExistentialQuantification #-}
 
 module Text.ParserCombinators.UU.MergeAndPermute where
 import Text.ParserCombinators.UU
 infixl 4  <||> 
 
-data Gram f a =  Gram  [Alt f a]  (Maybe a) 
+data Gram f a =             Gram  [Alt f a]  (Maybe a) 
+data Alt  f a =  forall b . Seq   (f b)      (Gram f (b -> a))  
 
-data Alt  f a =  forall b . Seq  (f (b -> a)) (Gram f b)
-              |             Elem (f       a)  
+mkGram p = Gram [p `Seq` Gram  [] (Just id)] Nothing
 
 instance Functor f => Functor (Gram f) where
-  fmap f (Gram alts e) = Gram (map (fmap f) alts) (fmap f e)
+  fmap f (Gram alts e) = Gram (map (f <$>) alts) (f <$> e)
 
 instance Functor f => Functor (Alt f) where
-  fmap a2c (fb2a `Seq` fb) = fmap (a2c .) fb2a `Seq` fb
-  fmap a2c (Elem fa      ) = Elem (a2c <$> fa)
+  fmap a2c (fb `Seq` fb2a) = fb `Seq` ( (a2c .) <$> fb2a)
 
 instance Functor f => Alternative (Gram f) where
   empty                     = Gram [] Nothing
   Gram ps pe <|> Gram qs qe = Gram (ps++qs) (pe <|> qe)
 
 instance Functor f => Applicative (Gram f) where
-  pure            a         = Gram [] (Just a)
+  pure a = Gram [] (Just a)
   Gram l le  <*> ~rg@(Gram r re) 
-    =   Gram  ((map (`fwdby` rg) l) ++ maybe [] (\e -> map (fmap e) r) le) (le <*> re)
-        where  (f `Seq` q) `fwdby` r  = fmap uncurry f `Seq` (fmap (,) q <*> r)
-               Elem    fa  `fwdby` r  = fa `Seq` r
+    =   Gram  ((map (`fwdby` rg) l) ++ maybe [] (\e -> map (e <$>) r) le) (le <*> re)
+        where (f `Seq` q) `fwdby` r = f `Seq` (flip <$> q <*> r)
 
 (<||>):: Functor f => Gram f (b->a) -> Gram f b -> Gram f a
 pg@(Gram pl pe) <||> qg@(Gram ql qe)
-   = Gram ([ fmap uncurry p                        `Seq` ((,) <$> pp <||> qg) | p `Seq` pp <- pl]
-     ++    [ fmap (\qv( pv, qqv) -> pv (qv qqv)) q `Seq` ((,) <$> pg <||> qq) | q `Seq` qq <- ql]
-     ++    [ p `Seq` qg                                                       | Elem p     <- pl]
-     ++    [ fmap (flip ($)) q `Seq` pg                                       | Elem q     <- ql]
-          ) (pe <*> qe)                                         
+   = Gram (   [ p `Seq` (flip  <$> pp <||> qg)| p `Seq` pp <- pl]
+           ++ [ q `Seq` ((.)   <$> pg <||> qq)| q `Seq` qq <- ql]
+          )   (pe <*> qe)                                         
 
-mkParserG :: (Applicative f, ExtAlternative f) => Gram f a -> f a
-mkParserG (Gram ls le) = foldr (<-|->) (maybe empty pure le) (map mkParserAlt ls)
-   where mkParserAlt (p `Seq` pp) = p <*> mkParserG pp
-         mkParserAlt (Elem p    ) = p
+
+mkParserM :: (Applicative f, ExtAlternative f) => Gram f a -> f a
+mkParserM (Gram ls le) = foldr (<-|->) (maybe empty pure le) (map mkParserAlt ls)
+   where mkParserAlt (p `Seq` pp) = p <**> mkParserM pp
  
+
+mkParserS :: (Applicative f, ExtAlternative f) => f b -> Gram f a -> f a
+mkParserS sep (Gram ls le) = foldr (<-|->) (maybe empty pure le) (map mkParserAlt ls)
+   where mkParserAlt (p `Seq` pp) = p <**> mkParserP sep pp
+
+mkParserP :: (Applicative f, ExtAlternative f) => f b -> Gram f a -> f a
+mkParserP sep (Gram ls le) = foldr (<-|->) (maybe empty pure le) (map mkParserAlt ls)
+   where mkParserAlt (p `Seq` pp) = sep *> p <**> mkParserP sep pp
+
 instance Functor f => ExtAlternative (Gram f) where
   Gram ps pe <-|-> Gram qs qe = Gram (ps++qs) (pe <|> qe)
-
+  p <<|> q                    = p <|> q
 
 instance IsParser f => IsParser (Gram f) where
   must_be_non_empty msg (Gram _ (Just _)) _
