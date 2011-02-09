@@ -11,7 +11,8 @@
 
 module Text.ParserCombinators.UU.Examples (run, demo) where
 import Data.Char
-import Text.ParserCombinators.UU
+import Text.ParserCombinators.UU 
+import Text.ParserCombinators.UU.MergeAndPermute
 import Text.ParserCombinators.UU.BasicInstances.String
 import System.IO
 import GHC.IO.Handle.Types
@@ -98,6 +99,7 @@ test4 = run pa2 "aa"
 -- 
 
 test5 =  run  (pList (pSym ('a','z'))) "doaitse"
+paz :: Parser String
 paz = pList (pSym ('a', 'z'))
 
 -- | An even more general instance of @`pSym`@ takes a triple as argument: a predicate, 
@@ -353,30 +355,54 @@ main = do DEMO (pa,  "a")
           demo_merge
 
 
+pBetween m n p |  n < 0 || m <0 = error "negative arguments to pBwteeen"
+               |  m > n     =  empty
+               |  otherwise =  (++) <$> pExactly m p <*> pAtMost (n-m) p
+
+pAtMost n p | n > 0 = (:) <$> p <*> pAtMost (n-1) p `opt` pure []
+            | n ==0 = pure []
+pAtLeast n p  = (++) <$> pExactly n p <*> pList p
+
+pSome p = (:) <$> p <*> pList p
+pMany p = pList p
+
+pExactly n p | n==0 = pure []
+            | n >0 = (:) <$> p <*> pExactly (n-1) p
+
+pOne p = p
+pSem = ($)
+
+gram p = Gram [Elem p] Nothing
+pa' = gram pa
+pb' = gram pb
+pc' = gram pc
 
 -- | For documentation of @`pMerge`@ and @`<||>`@ see the module "Text.ParserCombinators.UU.Merge". Here we just give a @deno_merge@, which
 --   should speak for itself. Make sure your parsers are not getting ambiguous. This soon gets very expensive.
 --
 demo_merge :: IO ()
-demo_merge = do DEMO (((,)   `pMerge` (pBetween 2 3 pa <||> pBetween 1 2 pb))                       , "abba")  
-                DEMO (((,)   `pMerge` (pBetween 2 3 pa <||> pBetween 1 2 pb))                       , "bba")
-                -- run ((,)   `pMerge` (pBetween 2 3 pa <||> pBetween 1 2 pa))                      , "aaa") -- is ambiguous, and thus incorrect
-                DEMO ((amb ((,)   `pMerge` (pBetween 2 3 pa <||> pBetween 1 2 pa)))                 , "aaa")
+demo_merge = do DEMO (((,)    <$> pBetween 2 3 pa' <||> pBetween 1 2 pb')                       , "abba")  
+                DEMO (((,)    <$> pBetween 2 3 pa' <||> pBetween 1 2 pb')                       , "bba")
+                -- run ((,)   <$>` (pBetween 2 3 pa' <||> pBetween 1 2 pa'))                      , "aaa") -- is ambiguous, and thus incorrect
+ --               DEMO ((amb ((,)    <$> pBetween 2 3 pa' <||> pBetween 1 2 pa'))                 , "aaa")
                 putStr "The 'a' at the right hand side can b any of the three 'a'-s in the input\n"
-                DEMO (((,)   `pMerge` (pAtLeast 3 pa <||> pAtMost 3 pb))                            , "aabbbb")  
-                DEMO (((,)   `pMerge` (pSome pa <||> pMany pb))                                     , "abba")       
-                DEMO (((,)   `pMerge` (pSome pa <||> pMany pb))                                     , "abba")           
-                DEMO (((,)   `pMerge` (pSome pa <||> pMany pb))                                     , "")         
-                DEMO (((,)   `pMerge` (pMany pb <||> pSome pc))                                     , "bcbc")          
-                DEMO (((,)   `pMerge` (pSome pb <||> pMany pc))                                     , "bcbc")
-                DEMO (((,,,) `pMerge` (pSome pa <||> pMany pb <||> pOne pc <||>  pNatural `pOpt` 5)), "babc45" )
-                DEMO (((,)   `pMerge` (pMany (pa <|> pb) <||> pSome pNatural))                      , "1ab12aab14")
-                DEMO (( (,)  `pMerge` ( ((++) `pSem` (pMany pa <||> pMany pb)) <||> pOne pc))       , "abcaaab")
-                DEMO (((((,), pc) `pMergeSep` (pMany pa <||> pMany pb)))                              , "acbcacb")
+                DEMO (((,)    <$> pAtLeast 3 pa' <||> pAtMost 3 pb')                            , "aabbbb")  
+                DEMO (((,)    <$> pSome pa' <||> pMany pb')                                     , "abba")       
+                DEMO (((,)    <$> pSome pa' <||> pMany pb')                                     , "abba")           
+                DEMO (((,)    <$> pSome pa' <||> pMany pb')                                     , "")         
+                DEMO (((,)    <$> pMany pb' <||> pSome pc')                                     , "bcbc")          
+                DEMO (((,)    <$> pSome pb' <||> pMany pc')                                     , "bcbc")
+{-
+                DEMO (((,,,)  <$> pSome pa' <||> pMany pb' <||> pOne pc' <||>  (pNatural `opt` 5)), "babc45" )
+                DEMO (((,)    <$> pMany (pa' <|> pb') <||> pSome pNatural)                      , "1ab12aab14")
+                DEMO (( (,)   <$> ((++) `pSem` (pMany pa' <||> pMany pb')) <||> pOne pc')       , "abcaaab")
+--                DEMO (((((,), pc) `pMergeSep` (pMany pa <||> pMany pb)))                              , "acbcacb")
+-}
 
-
+demo = undefined
+{-
 demo :: Show r => String -> String -> Parser r -> IO ()
 demo str  input p= do putStr ("\n===========================================\n>>   run " ++ str ++ "  " ++ show input ++ "\n")
                       run p input
-
+-}
 

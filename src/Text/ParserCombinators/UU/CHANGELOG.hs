@@ -1,5 +1,13 @@
 -- | This module just contains the CHANGELOG
 --
+-- Version 2.7
+--
+-- Improvement: change of error correction at end of @amb@ combinator, so lookahead is better taken into account
+--
+-- Relatively large change:
+--      * complete new implementation of merging/permuting parsers, for which a data structure describing grammars was introduced
+--      * a new class @IsParser* was introduced which captures the basic properties of our parsers
+--      * ....
 -- Version 2.6.1
 --
 --      * Changed the input to a @Stream@ interface to handle different kind of inputs like @String@, @Data.Text@ and @Data.ByteString@.

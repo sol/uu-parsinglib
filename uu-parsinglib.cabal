@@ -1,5 +1,5 @@
 Name:                uu-parsinglib
-Version:             2.6.1
+Version:             2.7.1
 Build-Type:          Simple
 License:             MIT
 Copyright:           S Doaitse Swierstra 
@@ -43,5 +43,6 @@ Library
                      Text.ParserCombinators.UU.BasicInstances.ByteString
                      Text.ParserCombinators.UU.BasicInstances.ByteString.Lazy
                      Text.ParserCombinators.UU.Derived
+                     Text.ParserCombinators.UU.MergeAndPermute
                      Text.ParserCombinators.UU.Examples
 

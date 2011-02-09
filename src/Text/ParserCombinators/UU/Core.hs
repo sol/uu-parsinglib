@@ -16,6 +16,10 @@ import Debug.Trace
 import Data.Maybe
 
 
+class (Alternative p, Applicative p, ExtAlternative p) => IsParser p where
+ must_be_non_empty   :: String -> p a ->        c -> c
+ must_be_non_empties :: String -> p a -> p b -> c -> c
+
 infix   2  <?>    -- should be the last element in a sequence of alternatives
 infixl  3  <<|>   -- intended use p <<|> q <<|> r <|> x <|> y <?> z
 infixl  3  <-|->  -- an alternative for <|> which does not compare the lengths, to be used in permutation parsers
@@ -61,7 +65,7 @@ data T st a  = T  (forall r . (a  -> st -> Steps r)  -> st -> Steps       r  ) -
 
 instance Functor (T st) where
   fmap f (T ph pf pr) = T  ( \  k -> ph ( k .f ))
-                           ( \  k ->  pushapply f . pf k) -- pure f <*> pf
+                           ( \  k ->  apply2fst f . pf k) -- pure f <*> pf
                            pr
   f <$ (T _ _ pr)     = T  ( pr . ($f)) 
                            ( \ k st -> push f ( pr k st)) 
@@ -414,6 +418,15 @@ data  Steps   a  where
       End_h  ::                 ([a] , [a]     ->  Steps r)    ->  Steps   (a,r)       -> Steps   (a, r)
       End_f  ::                 [Steps   a]    ->  Steps   a                           -> Steps   a
 
+apply       :: Steps (b -> a, (b, r)) -> Steps (a, r)
+apply       =  Apply (\(b2a, br) -> let (b, r) = br in (b2a b, r)) 
+
+push        :: v -> Steps   r -> Steps   (v, r)
+push v      =  Apply (\ r -> (v, r))
+
+apply2fst   :: (b -> a) -> Steps (b, r) -> Steps (a, r)
+apply2fst f = Apply (\ (b, r) -> (f b, r)) 
+
 succeedAlways :: Steps a
 succeedAlways = let steps = Step 0 steps in steps
 
@@ -439,11 +452,7 @@ eval (Apply  f   l   )  =   f (eval l)
 eval (End_f   _  _   )  =   error "dangling End_f constructor"
 eval (End_h   _  _   )  =   error "dangling End_h constructor"
 
-push        :: v -> Steps   r -> Steps   (v, r)
-push v      =  Apply (\ r -> (v, r))
 
-apply2fst   :: (b -> a) -> Steps (b, r) -> Steps (a, r)
-apply2fst f = Apply (\ (b, r) -> (f b, r)) 
 
 -- | @`norm`@ makes sure that the head of the seqeunce contains progress information. It does so by pushing information about the result (i.e. the @Apply@ steps) backwards.
 --
@@ -464,26 +473,26 @@ best :: Steps a -> Steps a -> Steps a
 x `best` y =   norm x `best'` norm y
 
 best' :: Steps   b -> Steps   b -> Steps   b
-Fail  sl  ll     `best'`  Fail  sr rr     =   Fail (sl ++ sr) (ll++rr)
-Fail  _   _      `best'`  r               =   r
-l                `best'`  Fail  _  _      =   l
-Step  n   l      `best'`  Step  m  r
-    | n == m                              =   Step n (l `best'` r)     
-    | n < m                               =   Step n (l  `best'`  Step (m - n)  r)
-    | n > m                               =   Step m (Step (n - m)  l  `best'` r)
-ls@(Step _  _)    `best'`  Micro _ _        =  ls
-Micro _    _      `best'`  rs@(Step  _ _)   =  rs
-ls@(Micro i l)    `best'`  rs@(Micro j r)  
-    | i == j                               =   Micro i (l `best'` r)
-    | i < j                                =   ls
-    | i > j                                =   rs
 End_f  as  l            `best'`  End_f  bs r          =   End_f (as++bs)  (l `best` r)
 End_f  as  l            `best'`  r                    =   End_f as        (l `best` r)
 l                       `best'`  End_f  bs r          =   End_f bs        (l `best` r)
 End_h  (as, k_h_st)  l  `best'`  End_h  (bs, _) r     =   End_h (as++bs, k_h_st)  (l `best` r)
 End_h  as  l            `best'`  r                    =   End_h as (l `best` r)
 l                       `best'`  End_h  bs r          =   End_h bs (l `best` r)
-l                       `best'`  r                    =   l `best` r 
+Fail  sl  ll     `best'`  Fail  sr rr     =   Fail (sl ++ sr) (ll++rr)
+Fail  _   _      `best'`  r               =   r   -- <----------------------------- to be refined
+l                `best'`  Fail  _  _      =   l
+Step  n   l      `best'`  Step  m  r
+    | n == m                              =   Step n (l  `best` r)     
+    | n < m                               =   Step n (l  `best`  Step (m - n)  r)
+    | n > m                               =   Step m (Step (n - m)  l  `best` r)
+ls@(Step _  _)    `best'`  Micro _ _        =  ls
+Micro _    _      `best'`  rs@(Step  _ _)   =  rs
+ls@(Micro i l)    `best'`  rs@(Micro j r)  
+    | i == j                               =   Micro i (l `best` r)
+    | i < j                                =   ls
+    | i > j                                =   rs
+l                       `best'`  r         =   error "missing alternative in best'" 
 
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -- %%%%%%%%%%%%% getCheapest  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -546,18 +555,15 @@ removeEnd_f (End_f(s:ss) r)    =   Apply  (:(map  eval ss)) s
 --   using the name of the context. If not then the third argument is returned. This is useful in testing for loogical combinations. For its use see
 --   the module Text>parserCombinators.UU.Derived
 
-must_be_non_empty :: [Char] -> P t t1 -> t2 -> t2
-must_be_non_empty msg p@(P _ _ Zero _) _ 
+instance IsParser (P st)  where
+  must_be_non_empty msg p@(P _ _ Zero _) _ 
             = error ("The combinator " ++ msg ++  " requires that it's argument cannot recognise the empty string\n")
-must_be_non_empty _ _  q  = q
-
+  must_be_non_empty _ _  q  = q
 -- | This function is similar to the above, but can be used in situations where we recognise a sequence of elements separated by other elements. This does not 
 --   make sense if both parsers can recognise the empty string. Your grammar is then highly ambiguous.
-
-must_be_non_empties :: [Char] -> P t1 t -> P t3 t2 -> t4 -> t4
-must_be_non_empties  msg (P _ _ Zero _) (P _ _ Zero _ ) _ 
+  must_be_non_empties  msg (P _ _ Zero _) (P _ _ Zero _ ) _ 
             = error ("The combinator " ++ msg ++  " requires that not both arguments can recognise the empty string\n")
-must_be_non_empties  msg _  _ q = q
+  must_be_non_empties  msg _  _ q = q
 
 
 -- ** The type @`Nat`@ for describing the minimal number of tokens consumed
