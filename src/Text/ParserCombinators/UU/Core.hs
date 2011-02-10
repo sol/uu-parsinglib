@@ -365,12 +365,16 @@ pEnd    = let nnp = Just ( T ( \ k inp ->   let deleterest inp =  case deleteAtE
          in P (mkParser nnp  Nothing) nnp Zero Nothing
            
 
--- The function @`parse`@ shows the prototypical way of running a parser on a some specific input
--- By default we use the future parser, since this gives us access to partal result; future parsers are expected to run in less space.
-
+-- | The function @`parse`@ shows the prototypical way of running a parser on
+-- some specific input.
+-- By default we use the future parser, since this gives us access to partal
+-- result; future parsers are expected to run in less space.
 parse :: (Eof t) => P t a -> t -> a
 parse   (P (T _  pf _) _ _ _)  = fst . eval . pf  (\ rest   -> if eof rest then         Step 0 (Step 0 (Step 0 (Step 0 (error "ambiguous parser?"))))  
                                                                else error "pEnd missing?")
+-- | The function @`parse_h`@ behaves like @`parse`@ but using the history
+-- parser. This parser does not give online results, but might run faster.
+parse_h :: (Eof t) => P t a -> t -> a
 parse_h (P (T ph _  _) _ _ _)  = fst . eval . ph  (\ a rest -> if eof rest then push a (Step 0 (Step 0 (Step 0 (Step 0 (error "ambiguous parser?"))))) 
                                                                            else error "pEnd missing?") 
 
