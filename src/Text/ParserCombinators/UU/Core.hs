@@ -6,7 +6,7 @@
 -- | The module `Core` contains the basic functionality of the parser library. 
 --   It  uses the  breadth-first module  to realise online generation of results, the error
 --   correction administration, dealing with ambigous grammars; it defines the types  of the elementary  parsers
---   and  recognisers involved.For typical use cases of the libray see the module @"Text.ParserCombinators.UU.Examples"@
+--   and  recognisers involved. For typical use cases of the libray see the module @"Text.ParserCombinators.UU.Examples"@
 
 module Text.ParserCombinators.UU.Core ( module Text.ParserCombinators.UU.Core
                                       , module Control.Applicative) where
@@ -16,6 +16,8 @@ import Debug.Trace
 import Data.Maybe
 
 
+-- | Checking for non-sensical combinations: @`must_be_non_empty`@ and
+--  @`must_be_non_empties`@
 class (Alternative p, Applicative p, ExtAlternative p) => IsParser p where
  must_be_non_empty   :: String -> p a ->        c -> c
  must_be_non_empties :: String -> p a -> p b -> c -> c
@@ -47,12 +49,16 @@ class Show loc => loc `IsLocationUpdatedBy` str where
     advance::loc -> str -> loc
 
 --  ** An extension to @`Alternative`@ which indicates a biased choice
--- | In order to be able to describe greedy parsers we introduce an extra operator, whch indicates a biased choice
+-- | In order to be able to describe greedy parsers we introduce an extra
+-- operator `<<|>`, which indicates a biased choice.
+-- `<<|>` is the greedy version of `<|>`. If its left hand side parser can
+-- make any progress that alternative is committed. Can be used to make
+-- parsers faster, and even get a complete Parsec equivalent behaviour, with
+-- all its (dis)advantages. Use with care!
 class (Alternative p) => ExtAlternative p where
   (<<|>)  :: p a -> p a -> p a
   (<-|->) :: p a -> p a -> p a
   (<-|->) = (<|>)
-     
 
 -- * The  triples containg a  history, a future parser and a recogniser: @`T`@
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -135,7 +141,7 @@ combine Nothing   (Just v) _  nq    _   op2 = case nq of
                                               Just nnq -> Just (v `op2` nnq)  -- right hand side has non-empty part
                                               Nothing  -> Nothing             -- neither side has non-empty part
 
--- ** Parsers are functors:  @`fmap`@
+-- | Parsers are functors:  @`fmap`@
 instance   Functor (P  state) where 
   fmap f   (P  ap np l me)   =  let nnp =  fmap (fmap     f)  np
                                     nep =  f <$> me                                    
@@ -145,7 +151,7 @@ instance   Functor (P  state) where
                                 in  P (mkParser nnp  nep) nnp l nep
 
 
--- ** Parsers are Applicative:  @`<*>`@,  @`<*`@,  @`*>`@ and  @`pure`@
+-- | Parsers are `Applicative`:  @`<*>`@,  @`<*`@,  @`*>`@ and  @`pure`@
 instance   Applicative (P  state) where
   P ap np  pl pe <*> ~(P aq nq  ql qe)  =  let newnp = combine np pe aq nq (<*>) (<$>)
                                                newlp = nat_add pl ql
@@ -163,7 +169,7 @@ instance   Applicative (P  state) where
 
 
  
--- ** Parsers are Alternative:  @`<|>`@ and  @`empty`@ 
+-- | Parsers are `Alternative`:  @`<|>`@ and @`empty`@ 
 instance   Alternative (P   state) where 
   P ap np  pl pe <|> P aq nq ql qe 
     =  let (rl, b) = trace' "calling natMin from <|>" (nat_min pl ql 0)
@@ -175,10 +181,7 @@ instance   Alternative (P   state) where
            in  P (mkParser nnp nep) nnp rl nep
   empty  =  P  empty empty  Infinite Nothing -- the always failing parser!
 
--- ** An alternative for the Alternative, which is greedy:  @`<<|>`@
--- | `<<|>` is the greedy version of `<|>`. If its left hand side parser can make any progress that alternative is committed. 
--- Can be used to make parsers faster, and even get a complete Parsec equivalent behaviour, with all its (dis)advantages. Use with are!
-
+-- | An alternative for the `Alternative`, which is greedy: @`<<|>`@
 instance ExtAlternative (P st) where
   P ap np pl pe <<|> P aq nq ql qe 
     = let (rl, b) = nat_min pl ql 0
@@ -287,7 +290,7 @@ P  _  np  pl pe <?> label
     in P (mkParser nnp  pe) nnp pl pe
 
 
--- | `micro` inserts a `Cost` step into the sequence representing the progress the parser is making; for its use see `Text.ParserCombinators.UU.Examples` 
+-- | `micro` inserts a `Cost` step into the sequence representing the progress the parser is making; for its use see `"Text.ParserCombinators.UU.Examples"`
 micro :: P state a -> Int -> P state a
 P _  np  pl pe `micro` i  
   = let nnp = case np of
@@ -550,17 +553,21 @@ removeEnd_f (End_f(s:ss) r)    =   Apply  (:(map  eval ss)) s
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -- * Auxiliary functions and types
--- ** Checking for non-sensical combinations: @`must_be_non_empty`@ and @`must_be_non_empties`@
--- | The function checks wehther its second argument is a parser which can recognise the mety sequence. If so an error message is given
---   using the name of the context. If not then the third argument is returned. This is useful in testing for loogical combinations. For its use see
---   the module Text>parserCombinators.UU.Derived
 
+-- | In this instance, @`must_be_non_empty`@ checks whether its second argument
+-- is a parser which can recognise the empty sequence. If so an error message is
+-- given using the name of the context. If not then the third argument is
+-- returned. This is useful in testing for logical combinations. For its use see
+-- the module @"Text.ParserCombinators.UU.Derived"@.
+-- @`must_be_non_empties`@ is similar to @`must_be_non_empty`@, but can be 
+-- used in situations where we recognise a sequence of elements separated by 
+-- other elements. This does not make sense if both parsers can recognise the 
+-- empty string. Your grammar is then highly ambiguous.
 instance IsParser (P st)  where
   must_be_non_empty msg p@(P _ _ Zero _) _ 
             = error ("The combinator " ++ msg ++  " requires that it's argument cannot recognise the empty string\n")
   must_be_non_empty _ _  q  = q
--- | This function is similar to the above, but can be used in situations where we recognise a sequence of elements separated by other elements. This does not 
---   make sense if both parsers can recognise the empty string. Your grammar is then highly ambiguous.
+
   must_be_non_empties  msg (P _ _ Zero _) (P _ _ Zero _ ) _ 
             = error ("The combinator " ++ msg ++  " requires that not both arguments can recognise the empty string\n")
   must_be_non_empties  msg _  _ q = q
@@ -593,9 +600,3 @@ get_length (P _ _  l _) = l
 
 trace' :: String -> b -> b
 trace' m v = {- trace m -}  v 
-
-
-
-
-
-
