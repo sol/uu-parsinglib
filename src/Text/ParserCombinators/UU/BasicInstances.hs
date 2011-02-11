@@ -15,9 +15,9 @@
 module Text.ParserCombinators.UU.BasicInstances where
 import Text.ParserCombinators.UU.Core
 import Data.Maybe
-import qualified Data.List as L
+import Data.Word
 import Debug.Trace
-import Prelude hiding (null, head, tail, span)
+import qualified Data.ListLike as LL
 
 data Error  pos =    Inserted String pos Strings
                    | Deleted  String pos Strings
@@ -41,28 +41,19 @@ data Str a s loc = Str { input    :: s
                        , pos      :: loc
                        , deleteOk :: !Bool}
 
-class Stream s t | s -> t where
-   uncons :: s -> Maybe (t, s)
-   null :: s -> Bool
-   null = isNothing . uncons
-   head :: s -> t
-   head = fst . fromMaybe (error "Cannot get head at end of stream.") . uncons
-   tail :: s -> s
-   tail = snd . fromMaybe (error "Cannot get tail at end of stream.") . uncons
-   span :: (t -> Bool) -> s -> ([t], s)
-   span p s = case uncons s of
-                 Nothing    -> ([], s)
-                 Just (h,t) -> if   p h
-                               then let (a,b) = span p t
-                                    in  (h:a,b)
-                               else ([], s)
-   stripPrefix :: Eq t => [t] -> s -> Maybe s
-   stripPrefix []     s = Just s
-   stripPrefix (x:xs) s = do (h,t) <- uncons s
-                             if h == x
-                              then stripPrefix xs t
-                              else Nothing
+type GenParser a r = LL.ListLike s a => P (Str a s loc) r
 
+type Parser r = P (Str Char String (Int, Int)) r --GenParser Char r
+
+createStr :: LL.ListLike s a => loc -> s -> Str a s loc
+createStr loc ls = Str ls [] loc True
+
+instance IsLocationUpdatedBy Int Char where
+   advance pos _ = pos + 1
+   
+instance IsLocationUpdatedBy Int Word8 where
+   advance pos _ = pos + 1
+   
 instance IsLocationUpdatedBy (Int,Int) Char where
    advance (line,pos) c = case c of
                           '\n' ->  (line+1, 0) 
@@ -72,34 +63,36 @@ instance IsLocationUpdatedBy (Int,Int) Char where
 instance IsLocationUpdatedBy loc a => IsLocationUpdatedBy loc [a] where
    advance  = foldl advance 
 
-instance (Show a,  loc `IsLocationUpdatedBy` a, Stream s a) => Provides  (Str a s loc)  (a -> Bool, String, a)  a where
+instance (Show a,  loc `IsLocationUpdatedBy` a, LL.ListLike s a) => Provides  (Str a s loc)  (a -> Bool, String, a)  a where
        splitState (p, msg, a) k (Str  tts   msgs pos  del_ok) 
           = show_attempt ("Try Predicate: " ++ msg ++ "\n") (
-            let ins exp =       (5, k a (Str tts (msgs ++ [Inserted (show a)  pos  exp]) pos  False))
-                del exp =       (5, splitState (p,msg, a) 
+            let ins exp = (5, k a (Str tts (msgs ++ [Inserted (show a)  pos  exp]) pos  False))
+            in if   LL.null tts 
+               then Fail [msg] [ins]
+               else let t       = LL.head tts
+                        ts      = LL.tail tts
+                        del exp = (5, splitState (p,msg, a) 
                                     k
-                                    (Str (tail tts) 
-                                         (msgs ++ [Deleted  (show(head tts))  pos  exp]) 
-                                         (advance pos (head tts))
+                                    (Str ts 
+                                         (msgs ++ [Deleted  (show t)  pos  exp]) 
+                                         (advance pos t)
                                          True ))
-            in case uncons tts of
-               Just (t,ts) ->  if p t 
-                               then  show_symbol ("Accepting symbol: " ++ show t ++ " at position: " ++ show pos ++"\n") 
-                                     (Step 1 (k t (Str ts msgs (advance pos t) True)))
-                               else  Fail [msg] (ins: if del_ok then [del] else [])
-               _           ->  Fail [msg] [ins]
+                    in if p t
+                       then  show_symbol ("Accepting symbol: " ++ show t ++ " at position: " ++ show pos ++"\n") 
+                             (Step 1 (k t (Str ts msgs (advance pos t) True)))
+                       else  Fail [msg] (ins: if del_ok then [del] else [])
             )
 
-instance (Ord a, Show a, loc `IsLocationUpdatedBy`  a, Stream s a) => Provides  (Str  a s loc)  (a,a)  a where
+instance (Ord a, Show a, loc `IsLocationUpdatedBy`  a, LL.ListLike s a) => Provides  (Str  a s loc)  (a,a)  a where
        splitState a@(low, high) = splitState (\ t -> low <= t && t <= high, show low ++ ".." ++ show high, low)
 
-instance (Eq a, Show a, loc `IsLocationUpdatedBy`  a, Stream s a) => Provides  (Str  a s loc)  a  a where
+instance (Eq a, Show a, loc `IsLocationUpdatedBy`  a, LL.ListLike s a) => Provides  (Str  a s loc)  a  a where
        splitState a  = splitState ((==a), show a, a) 
 
-instance (Show a, Stream s a) => Eof (Str a s loc) where
-       eof (Str  i        _    _    _    )                = null i
-       deleteAtEnd (Str s msgs pos ok )                   = do (i,ii) <- uncons s
-                                                               return (5, Str ii (msgs ++ [DeletedAtEnd (show i)]) pos ok)
+instance (Show a, LL.ListLike s a) => Eof (Str a s loc) where
+       eof (Str  i        _    _    _    )              = LL.null i
+       deleteAtEnd (Str s msgs pos ok )     | LL.null s = Nothing
+                                            | otherwise = Just (5, Str (LL.tail s) (msgs ++ [DeletedAtEnd (show (LL.head s))]) pos ok)
 
 
 instance  Stores (Str a s loc) (Error loc) where
@@ -112,10 +105,11 @@ instance  HasPosition (Str a s loc) loc where
 
 data Munch a = Munch (a -> Bool) String
 
-instance (Show a, loc `IsLocationUpdatedBy` [a], Stream s a) => Provides (Str a s loc) (Munch a) [a] where 
+instance (Show a, loc `IsLocationUpdatedBy` [a], LL.ListLike s a) => Provides (Str a s loc) (Munch a) [a] where 
        splitState (Munch p x) k inp@(Str tts msgs pos del_ok)
           =    show_attempt ("Try Munch: " ++ x ++ "\n") (
-               let (munched, rest) = span p tts
+               let (fmunch, rest)  = LL.span p tts
+                   munched         = LL.toList fmunch
                    l               = length munched
                in if l > 0 then show_munch ("Accepting munch: " ++ x ++ " " ++ show munched ++  show pos ++ "\n") 
                                 (Step l (k munched (Str rest msgs (advance pos munched)  (l>0 || del_ok))))
@@ -130,16 +124,28 @@ pMunchL p l = pSymExt Zero Nothing  (Munch p l) -- the empty case is handled abo
 
 data Token a = Token [a] Int -- the Int value represents the cost for inserting such a token
 
-instance (Show a, Eq a, loc `IsLocationUpdatedBy` a, Stream s a) => Provides (Str a s loc) (Token a) [a] where 
-  splitState tok@(Token  as cost) k (Str tts msgs pos del_ok)
+stripPrefixListLike :: (Eq item, LL.ListLike full item) => [item] -> full -> Maybe full
+stripPrefixListLike []     s = Just s
+stripPrefixListLike (x:xs) s = if   x == LL.head s
+                               then stripPrefixListLike xs (LL.tail s)
+                               else Nothing
+
+
+instance (Show a, Eq a, loc `IsLocationUpdatedBy` a, LL.ListLike s a) => Provides (Str a s loc) (Token a) [a] where 
+  splitState tok@(Token as cost) k (Str tts msgs pos del_ok)
    =  let l = length as
           msg = show as 
       in  show_attempt ("Try Token: " ++ show as ++ "\n") (
-          case stripPrefix as tts of
-          Nothing  ->  let ins exp =  (cost, k as             (Str tts         (msgs ++ [Inserted msg               pos  exp])   pos    False))
-                           del exp =  (5,    splitState tok k (Str (tail tts)  (msgs ++ [Deleted  (show(head tts))  pos  exp])  (advance pos [(head tts)]) True ))
-                       in if null tts then  Fail [msg] [ins]
-                                      else  Fail [msg] (ins: if del_ok then [del] else [])
+          case stripPrefixListLike as tts of
+          Nothing  ->  let ins exp =  (cost, k as (Str tts (msgs ++ [Inserted msg pos exp]) pos False))
+                       in if LL.null tts 
+                          then  Fail [msg] [ins]
+                          else  let t       = LL.head tts
+                                    ts      = LL.tail tts
+                                    del exp =  (5, splitState tok k 
+                                                   (Str ts (msgs ++ [Deleted  (show t) pos exp]) 
+                                                    (advance pos t) True))
+                                in  Fail [msg] (ins: if del_ok then [del] else [])
           Just rest -> show_tokens ("Accepting token: " ++ show as ++"\n") 
                        (Step l (k as (Str rest msgs (advance pos as) True)))
           )
@@ -150,7 +156,7 @@ pToken     as   =   pTokenCost as 5
 
 -- | Parse a list of primitive tokens (for example characters) with a certain cost.
 pTokenCost :: (Provides state (Token a) token) => [a] -> Int -> P state token
-pTokenCost as c =   if L.null as then error "call to pToken with empty token"
+pTokenCost as c =   if null as then error "call to pToken with empty token"
                     else pSymExt (length as) Nothing (Token as c)
                     where length [] = Zero
                           length (_:as) = Succ (length as)

@@ -2,6 +2,7 @@
 {-# LANGUAGE  FlexibleInstances,
               TypeSynonymInstances,
               MultiParamTypeClasses,
+              Rank2Types, FlexibleContexts, NoMonomorphismRestriction,
               CPP  #-}
 
 -- | This module contains a lot of examples of the typical use of our parser combinator library. 
@@ -13,7 +14,7 @@ module Text.ParserCombinators.UU.Examples (run, demo) where
 import Data.Char
 import Text.ParserCombinators.UU 
 import Text.ParserCombinators.UU.MergeAndPermute
-import Text.ParserCombinators.UU.BasicInstances.String
+import Text.ParserCombinators.UU.BasicInstances
 import System.IO
 import GHC.IO.Handle.Types
 
@@ -21,7 +22,7 @@ import GHC.IO.Handle.Types
 
 -- | The fuction @`run`@ runs the parser and shows both the result, and the correcting steps which were taken during the parsing process.
 run :: Show t =>  Parser t -> String -> IO ()
-run p inp = do  let r@(a, errors) =  parse ( (,) <$> p <*> pEnd) (createStr inp)
+run p inp = do  let r@(a, errors) =  parse ( (,) <$> p <*> pEnd) (createStr (0,0) inp)
                 putStrLn "--"
                 putStrLn ("-- > Result: " ++ show a)
                 if null errors then  return ()
@@ -363,6 +364,7 @@ pAtMost n p | n > 0 = (:) <$> p <*> pAtMost (n-1) p `opt` pure []
             | n ==0 = pure []
 pAtLeast n p  = (++) <$> pExactly n p <*> pList p
 
+pSome :: (IsParser f) => f a -> f [a]
 pSome p = (:) <$> p <*> pList p
 pMany p = pList p
 
