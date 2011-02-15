@@ -19,22 +19,25 @@ import Data.Word
 import Debug.Trace
 import qualified Data.ListLike as LL
 
-data Error  pos =    Inserted String pos Strings
-                   | Deleted  String pos Strings
+data Error  pos =    Inserted String pos        Strings
+                   | Deleted  String pos        Strings
+                   | Replaced String String pos Strings
                    | DeletedAtEnd String
 
 instance (Show pos) => Show (Error  pos) where 
- show (Inserted s pos expecting) = "-- >    Inserted " ++  s ++ " at position " ++ show pos ++  show_expecting  expecting 
- show (Deleted  t pos expecting) = "-- >    Deleted  " ++  t ++ " at position " ++ show pos ++  show_expecting  expecting 
- show (DeletedAtEnd t)           = "-- >    The token " ++ t ++ " was not consumed by the parsing process."
+ show (Inserted s pos expecting)       = "-- >    Inserted  " ++  s ++  show_expecting  pos expecting 
+ show (Deleted  t pos expecting)       = "-- >    Deleted   " ++  t ++  show_expecting  pos expecting
+ show (Replaced old new pos expecting) = "-- >    Replaced  " ++ old ++ " by "++ new ++  show_expecting  pos expecting
+ show (DeletedAtEnd t)                 = "-- >    The token " ++ t ++ " was not consumed by the parsing process."
 
 show_errors :: (Show a) => [a] -> IO ()
 show_errors = sequence_ . (map (putStrLn . show))
 
 show_expecting :: [String] -> String
-show_expecting [a]    = " expecting " ++ a
-show_expecting (a:as) = " expecting one of [" ++ a ++ concat (map (", " ++) as) ++ "]"
-show_expecting []     = " expecting nothing"
+show_expecting pos [a]    = " at position " ++ show pos ++ " expecting " ++ a
+show_expecting pos (a:as) = " at position " ++ show pos ++ 
+                            " expecting one of [" ++ a ++ concat (map (", " ++) as) ++ "]"
+show_expecting pos []     = " expecting nothing"
 
 data Str a s loc = Str { input    :: s
                        , msgs     :: [Error loc]

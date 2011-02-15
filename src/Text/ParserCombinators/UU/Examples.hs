@@ -10,7 +10,7 @@
 --   At the end you find a @`main`@ function which demonstrates the main characteristics. 
 --   Only the @`run`@ function is exported since it may come in handy elsewhere.
 
-module Text.ParserCombinators.UU.Examples (run, demo) where
+module Text.ParserCombinators.UU.Examples (run, demo, pExact) where
 import Data.Char
 import Text.ParserCombinators.UU 
 import Text.ParserCombinators.UU.MergeAndPermute
