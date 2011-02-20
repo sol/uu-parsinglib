@@ -33,7 +33,7 @@ instance (Show pos) => Show (Error  pos) where
 show_errors :: (Show a) => [a] -> IO ()
 show_errors = sequence_ . (map (putStrLn . show))
 
-show_expecting :: [String] -> String
+show_expecting :: (Show a) => a -> [String] -> String
 show_expecting pos [a]    = " at position " ++ show pos ++ " expecting " ++ a
 show_expecting pos (a:as) = " at position " ++ show pos ++ 
                             " expecting one of [" ++ a ++ concat (map (", " ++) as) ++ "]"
