@@ -18,9 +18,8 @@ import Data.Maybe
 
 -- | Checking for non-sensical combinations: @`must_be_non_empty`@ and
 --  @`must_be_non_empties`@
-class (Alternative p, Applicative p, ExtAlternative p) => IsParser p where
- must_be_non_empty   :: String -> p a ->        c -> c
- must_be_non_empties :: String -> p a -> p b -> c -> c
+class (Alternative p, Applicative p, ExtAlternative p) => IsParser p 
+ 
 
 infix   2  <?>    -- should be the last element in a sequence of alternatives
 infixl  3  <<|>   -- intended use p <<|> q <<|> r <|> x <|> y <?> z
@@ -55,10 +54,23 @@ class Show loc => loc `IsLocationUpdatedBy` str where
 -- make any progress that alternative is committed. Can be used to make
 -- parsers faster, and even get a complete Parsec equivalent behaviour, with
 -- all its (dis)advantages. Use with care!
+
 class (Alternative p) => ExtAlternative p where
-  (<<|>)  :: p a -> p a -> p a
-  (<-|->) :: p a -> p a -> p a
-  (<-|->) = (<|>)
+   (<<|>)  :: p a -> p a -> p a
+   (<-|->) :: p a -> p a -> p a
+   (<-|->) = (<|>)
+-- | Optionally recognize parser 'p'.
+-- 
+-- If 'p' can be recognized, the return value of 'p' is used. Otherwise,
+-- the value 'v' is used. Note that opt is greedy, if you do not want
+-- this use @... <|> pure v@  instead. Furthermore, 'p' should not
+-- recognise the empty string, since this would make your parser ambiguous!!
+   opt     :: p a ->   a -> p a
+   p `opt` v       = must_be_non_empty "opt" p (p <<|> pure v)   
+   must_be_non_empty   :: String -> p a ->        c -> c
+   must_be_non_empties :: String -> p a -> p b -> c -> c 
+
+infixl 2 `opt`
 
 -- * The  triples containg a  history, a future parser and a recogniser: @`T`@
 -- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -206,6 +218,22 @@ instance ExtAlternative (P st) where
        in  let nnp =  np `alt` nq
                nep =  pe <|> qe
            in  P (mkParser nnp nep) nnp pl nep
+  -- | In this instance, @`must_be_non_empty`@ checks whether its second argument
+  -- is a parser which can recognise the empty sequence. If so an error message is
+  -- given using the name of the context. If not then the third argument is
+  -- returned. This is useful in testing for logical combinations. For its use see
+  -- the module @"Text.ParserCombinators.UU.Derived"@.
+  -- @`must_be_non_empties`@ is similar to @`must_be_non_empty`@, but can be 
+  -- used in situations where we recognise a sequence of elements separated by 
+  -- other elements. This does not make sense if both parsers can recognise the 
+  -- empty string. Your grammar is then highly ambiguous.
+  must_be_non_empty msg p@(P _ _ Zero _) _ 
+            = error ("The combinator " ++ msg ++  " requires that it's argument cannot recognise the empty string\n")
+  must_be_non_empty _ _      q  = q
+  must_be_non_empties  msg (P _ _ Zero _) (P _ _ Zero _ ) _ 
+            = error ("The combinator " ++ msg ++  " requires that not both arguments can recognise the empty string\n")
+  must_be_non_empties  _ _ _ q  = q
+
 
 -- ** Parsers can recognise single tokens:  @`pSym`@ and  @`pSymExt`@
 --   Many parsing libraries do not make a distinction between the terminal symbols of the language recognised 
@@ -558,24 +586,9 @@ removeEnd_f (End_f(s:ss) r)    =   Apply  (:(map  eval ss)) s
 
 -- * Auxiliary functions and types
 
--- | In this instance, @`must_be_non_empty`@ checks whether its second argument
--- is a parser which can recognise the empty sequence. If so an error message is
--- given using the name of the context. If not then the third argument is
--- returned. This is useful in testing for logical combinations. For its use see
--- the module @"Text.ParserCombinators.UU.Derived"@.
--- @`must_be_non_empties`@ is similar to @`must_be_non_empty`@, but can be 
--- used in situations where we recognise a sequence of elements separated by 
--- other elements. This does not make sense if both parsers can recognise the 
--- empty string. Your grammar is then highly ambiguous.
-instance IsParser (P st)  where
-  must_be_non_empty msg p@(P _ _ Zero _) _ 
-            = error ("The combinator " ++ msg ++  " requires that it's argument cannot recognise the empty string\n")
-  must_be_non_empty _ _  q  = q
 
-  must_be_non_empties  msg (P _ _ Zero _) (P _ _ Zero _ ) _ 
-            = error ("The combinator " ++ msg ++  " requires that not both arguments can recognise the empty string\n")
-  must_be_non_empties  msg _  _ q = q
-
+instance IsParser (P st)  
+ 
 
 -- ** The type @`Nat`@ for describing the minimal number of tokens consumed
 -- | The data type @`Nat`@ is used to represent the minimal length of a parser.

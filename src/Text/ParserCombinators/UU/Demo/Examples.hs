@@ -10,7 +10,7 @@
 --   At the end you find a @`main`@ function which demonstrates the main characteristics. 
 --   Only the @`run`@ function is exported since it may come in handy elsewhere.
 
-module Text.ParserCombinators.UU.Examples (run, demo, pExact) where
+module Text.ParserCombinators.UU.Demo.Examples  where
 import Data.Char
 import Text.ParserCombinators.UU 
 import Text.ParserCombinators.UU.MergeAndPermute
@@ -353,57 +353,8 @@ main = do DEMO (pa,  "a")
           DEMO ((pa <|> pb <?> justamessage),   "c")
           DEMO ((amb (pEither  parseIntString  pIntList)),   "(123;456;789)")
           DEMO (munch,   "a^=^**^^b")
-          demo_merge
 
 
-pBetween m n p |  n < 0 || m <0 = error "negative arguments to pBwteeen"
-               |  m > n     =  empty
-               |  otherwise =  (++) <$> pExactly m p <*> pAtMost (n-m) p
-
-pAtMost n p | n > 0 = (:) <$> p <*> pAtMost (n-1) p `opt` pure []
-            | n ==0 = pure []
-pAtLeast n p  = (++) <$> pExactly n p <*> pList p
-
-pSome :: (IsParser f) => f a -> f [a]
-pSome p = (:) <$> p <*> pList p
-pMany p = pList p
-
-pExactly n p | n==0 = pure []
-            | n >0 = (:) <$> p <*> pExactly (n-1) p
-
-pOne p = p
-pSem = ($)
-
-pa' = mkGram pa
-pb' = mkGram pb
-pc' = mkGram pc
-
--- | For documentation of @`pMerge`@ and @`<||>`@ see the module "Text.ParserCombinators.UU.Merge". Here we just give a @deno_merge@, which
---   should speak for itself. Make sure your parsers are not getting ambiguous. This soon gets very expensive.
---
-demo_merge :: IO ()
-demo_merge = do DEMO (((,)    <$> pBetween 2 3 pa' <||> pBetween 1 2 pb')                       , "abba")  
-                DEMO (((,)    <$> pBetween 2 3 pa' <||> pBetween 1 2 pb')                       , "bba")
-                -- run ((,)   <$>` (pBetween 2 3 pa' <||> pBetween 1 2 pa'))                      , "aaa") -- is ambiguous, and thus incorrect
- --               DEMO ((amb ((,)    <$> pBetween 2 3 pa' <||> pBetween 1 2 pa'))                 , "aaa")
-                putStr "The 'a' at the right hand side can b any of the three 'a'-s in the input\n"
-                DEMO (((,)    <$> pAtLeast 3 pa' <||> pAtMost 3 pb')                            , "aabbbb")  
-                DEMO (((,)    <$> pSome pa' <||> pMany pb')                                     , "abba")       
-                DEMO (((,)    <$> pSome pa' <||> pMany pb')                                     , "abba")           
-                DEMO (((,)    <$> pSome pa' <||> pMany pb')                                     , "")         
-                DEMO (((,)    <$> pMany pb' <||> pSome pc')                                     , "bcbc")          
-                DEMO (((,)    <$> pSome pb' <||> pMany pc')                                     , "bcbc")
-{-
-                DEMO (((,,,)  <$> pSome pa' <||> pMany pb' <||> pOne pc' <||>  (pNatural `opt` 5)), "babc45" )
-                DEMO (((,)    <$> pMany (pa' <|> pb') <||> pSome pNatural)                      , "1ab12aab14")
-                DEMO (( (,)   <$> ((++) `pSem` (pMany pa' <||> pMany pb')) <||> pOne pc')       , "abcaaab")
---                DEMO (((((,), pc) `pMergeSep` (pMany pa <||> pMany pb)))                              , "acbcacb")
--}
-
-demo = undefined
-{-
 demo :: Show r => String -> String -> Parser r -> IO ()
 demo str  input p= do putStr ("\n===========================================\n>>   run " ++ str ++ "  " ++ show input ++ "\n")
                       run p input
--}
-
