@@ -87,9 +87,9 @@ where
 
 import Data.Char
 import Data.List
-import Data.Time
+--import Data.Time
 import Text.ParserCombinators.UU.Core
-import Text.ParserCombinators.UU.BasicInstances hiding (head)
+import Text.ParserCombinators.UU.BasicInstances hiding (Parser)
 import Text.ParserCombinators.UU.Derived
 import Text.Printf
 

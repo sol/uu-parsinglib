@@ -31,18 +31,15 @@ Category:            Parsing Text
 Library
   hs-source-dirs:    src
 
-  Build-Depends:     base >= 4.2 && <5, haskell98, text, bytestring
+  Build-Depends:     base >= 4.2 && <5, haskell98, ListLike >= 3.0.1
   Exposed-modules:   Text.ParserCombinators.UU
-                     Text.ParserCombinators.UU.CHANGELOG
-                     Text.ParserCombinators.UU.README
-                     Text.ParserCombinators.UU.Core  
                      Text.ParserCombinators.UU.BasicInstances
-                     Text.ParserCombinators.UU.BasicInstances.List
-                     Text.ParserCombinators.UU.BasicInstances.String
-                     Text.ParserCombinators.UU.BasicInstances.Text
-                     Text.ParserCombinators.UU.BasicInstances.ByteString
-                     Text.ParserCombinators.UU.BasicInstances.ByteString.Lazy
+                     Text.ParserCombinators.UU.CHANGELOG
+                     Text.ParserCombinators.UU.Core
+                     Text.ParserCombinators.UU.Demo.Examples
+                     Text.ParserCombinators.UU.Demo.MergeAndPermute
                      Text.ParserCombinators.UU.Derived
                      Text.ParserCombinators.UU.MergeAndPermute
-                     Text.ParserCombinators.UU.Examples
+                     Text.ParserCombinators.UU.README
+                     Text.ParserCombinators.UU.Utils
 
