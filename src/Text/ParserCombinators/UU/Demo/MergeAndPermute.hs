@@ -23,7 +23,7 @@ mtest2 = run (amb(mkParserM ((,) <$> pmMany ((,) <$>  pa' <*> pc') <||> pmMany p
 
 pABC = (\ a d -> d:a) <$> pa' <*> (pDigit' >>= \d ->  pb' *> mkGram (pSym d) *> pc' *> mkGram (pSym d))
 
-mtest3 = run (mkParserM (pmMany(pABC))) "a1a2b1b2c2a3b3c1c3"
+mtest3 = run (mkParserM (pmMany(pABC))) "a2a1b1b2c2a3b3c1c3"
 
 
 pExactly :: (IsParser f) => Int -> f a -> f [a]

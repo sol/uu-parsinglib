@@ -54,19 +54,19 @@ class Show loc => loc `IsLocationUpdatedBy` str where
 -- make any progress that alternative is committed. Can be used to make
 -- parsers faster, and even get a complete Parsec equivalent behaviour, with
 -- all its (dis)advantages. Use with care!
-
-class (Alternative p) => ExtAlternative p where
-   (<<|>)  :: p a -> p a -> p a
-   (<-|->) :: p a -> p a -> p a
-   (<-|->) = (<|>)
 -- | Optionally recognize parser 'p'.
 -- 
 -- If 'p' can be recognized, the return value of 'p' is used. Otherwise,
 -- the value 'v' is used. Note that opt is greedy, if you do not want
 -- this use @... <|> pure v@  instead. Furthermore, 'p' should not
 -- recognise the empty string, since this would make your parser ambiguous!!
+
+class (Alternative p) => ExtAlternative p where
+   (<<|>)  :: p a -> p a -> p a
+   (<-|->) :: p a -> p a -> p a
+   (<-|->) = (<|>)
    opt     :: p a ->   a -> p a
-   p `opt` v       = must_be_non_empty "opt" p (p <<|> pure v)   
+   opt p v      = must_be_non_empty "opt" p (p <<|> pure v)   
    must_be_non_empty   :: String -> p a ->        c -> c
    must_be_non_empties :: String -> p a -> p b -> c -> c 
 
