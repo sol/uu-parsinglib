@@ -4,15 +4,15 @@
 --
 -- * how to to write ambiguous parsers
 --
--- * how the error correction works
+-- * how  error correction works
 --
--- * how to fine tune your parsers to get rid of ambiguities
+-- * how to fine-tune your parsers to get rid of ambiguities
 --
 -- * how to use the monadic interface
 --
--- * what kind of error messages you can get if you write erroneous parsers
+-- * what kind of error messages you can expect if you write erroneous parsers
 --
--- * how to use the permutation/merging parsers
+-- * how to use the permutating/merging parsers
 --
 -- * to see the parsers in action load the module "Text.ParserCombinators.UU.Demo.Examples" or "Text.ParserCombinators.UU.Demo.MergeAndPermute"in @ghci@ and type @main@ or @demo_merge@, while looking at the corresponding code
 --
@@ -20,9 +20,16 @@
 module Text.ParserCombinators.UU ( module Text.ParserCombinators.UU.Core
                                  , module Text.ParserCombinators.UU.Derived
                                  , module Text.ParserCombinators.UU.MergeAndPermute
-) where
+                                 , module Control.Applicative
+                                 , module Control.Monad
+                                 ) where
 import Text.ParserCombinators.UU.Core
 import Text.ParserCombinators.UU.Derived
 import Text.ParserCombinators.UU.MergeAndPermute
+import Control.Applicative
+import Control.Monad
+
+
+
 
 

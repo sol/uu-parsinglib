@@ -22,14 +22,15 @@ import GHC.IO.Handle.Types
 
 -- | The fuction @`run`@ runs the parser and shows both the result, and the correcting steps which were taken during the parsing process.
 run :: Show t =>  Parser t -> String -> IO ()
-run p inp = do  let r@(a, errors) =  parse ( (,) <$> p <*> pEnd) (createStr (0,0) inp)
+run p inp = do  let r@(a, errors) =  parse ( (,) <$> p <*> pEnd) (createStr (0,0,0) inp)
                 putStrLn "--"
                 putStrLn ("-- > Result: " ++ show a)
                 if null errors then  return ()
                                else  do putStr ("-- > Correcting steps: \n")
                                         show_errors errors
                 putStrLn "-- "
-
+             where show_errors :: (Show a) => [a] -> IO ()
+                   show_errors = sequence_ . (map (putStrLn . show))
 
 -- | Our first two parsers are simple; one recognises a single 'a' character and the other one a single 'b'. Since we will use them later we 
 --   convert the recognsied character into String so they can be easily combined.

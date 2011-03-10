@@ -10,8 +10,8 @@
 --   * Text.ParserCombinators.UU.Examples
 --
 
-{-# LANGUAGE PatternGuards, ScopedTypeVariables, NoMonomorphismRestriction #-}
-{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, TypeSynonymInstances, FlexibleContexts, RankNTypes #-}
+{-# LANGUAGE PatternGuards, ScopedTypeVariables, NoMonomorphismRestriction,FlexibleInstances,  FlexibleContexts, RankNTypes, ScopedTypeVariables #-}
+-- {-# LANGUAGE  MultiParamTypeClasses, TypeSynonymInstances, FlexibleContexts #-}
 
 module Text.ParserCombinators.UU.Utils (
    -- * Single-char parsers
@@ -87,40 +87,28 @@ where
 
 import Data.Char
 import Data.List
---import Data.Time
+import Data.Time
 import Text.ParserCombinators.UU.Core
 import Text.ParserCombinators.UU.BasicInstances hiding (Parser)
 import Text.ParserCombinators.UU.Derived
+import Control.Applicative
 import Text.Printf
 
 ------------------------------------------------------------------------
--- [pSym note]
---
--- pSym is triply overloaded. (Well, actually it'll work for anything
--- that has a 'Provides' instance, and we have three 'Provides' instances
--- below):
---
---  * (a -> Bool, String, a)
---  * (a,a)
---  * a
---
--- The first is the most general, the other two are implemented in terms
--- of it.
---
--- pSym :: (a -> Bool, String, a)   .... symbol predicate, descr of symbol,
--- default token to use for error correction
 
 -- Single Char parsers
 
-type Parser a  =  Provides state   Char      token => P state token
-type CParser   =  Provides state   Char      Char  => P state Char
-type RParser a =  Provides state (Char,Char) token => P state token
+type Parser a  =  Provides state   Char       Char  => P state a
+-- | A parser for a single characater
+type CParser a =  Provides state   Char       Char  => P state a
+-- | A parser for a range of characters
+type RParser a =  Provides state  (Char,Char) Char  => P state a
 
 
-pCR :: Parser Char
+pCR :: CParser Char
 pCR       = pSym '\r'
 
-pLF :: Parser Char
+pLF :: CParser Char
 pLF       = pSym '\n'
 
 pDigit :: RParser Char
@@ -148,14 +136,14 @@ pDigitAsNum =
 ------------------------------------------------------------------------
 -- Whitespace
 
-pSpaces :: Provides st Char Char => P st String
+--pSpaces :: Parser String
 pSpaces = pList $ pAnySym " \r\n\t" <?> "Whitespace"
 
 
 ------------------------------------------------------------------------
 -- Lexeme Parsers skip trailing whitespace (this terminology comes from Parsec)
 
-lexeme ::  Provides st Char Char => P st a -> P st a
+--lexeme :: Provides state Char Char => P state a -> P state a
 lexeme p = p <* pSpaces
 
 pDot      = lexeme $ pSym '.'
@@ -235,56 +223,52 @@ pDouble = lexeme pDoubleRaw
 -- pPercent :: Parser Double
 pPercent = lexeme pPctOrDbl
 
-{-
+
 ------------------------------------------------------------------------
 -- Parsers for Enums
 
-pEnumRaw :: forall a . (Enum a, Show a) => Parser a
+pEnumRaw :: forall a state. (Enum a, Show a,  Provides state (Token Char) String) => P state a
 pEnumRaw = foldr (\ c r -> c <$ pToken (show c) <|> r) pFail enumerated
            <?> (printf "Enum (eg %s or ... %s)" (show (head enumerated)) (show (last enumerated)))
             -- unless it is an empty data decl we will always have a head/last (even if the same)
             -- if it is empty, you cannot use it anyhow...
   where
-    enumerated = [toEnum 0..] :: [a]
-    pToken :: Provides st s s => [s] -> P st [s]
-    pToken []     = pure []
-    pToken (a:as) = (:) <$> pSym a <*> pToken as
+    enumerated :: [a]
+    enumerated = [toEnum 0..] 
+--    pToken :: Provides st s s => [s] -> P st [s]
+--    pToken []     = pure []
+--    pToken (a:as) = (:) <$> pSym a <*> pToken as
 
-pEnum :: (Enum a, Show a) => Parser a
+pEnum ::  (Enum a, Show a, Provides state Char Char, Provides state (Token Char) String) => P state a
 pEnum = lexeme pEnumRaw
 
-pEnumStrs :: [String] -> Parser String
+pEnumStrs
+  :: (Show a,
+      Provides state (Token a) token,
+      Provides state Char Char) => [[a]] -> P state token
 pEnumStrs xs = pAny (\t -> pSpaces *> pToken t <* pSpaces) xs <?> "enumerated value in " ++ show xs
 
 
-------------------------------------------------------------------------
--- Parser combinators
-
-pCount :: (Num b) => Parser a -> Parser b
-pCount p = (\_ b -> b+1) <$> p <*> pCount p <<|> pReturn 0
-
-pExact :: Int -> Parser a -> Parser [a]
-pExact 0 _ = pReturn []
-pExact n p = (:) <$> p <*> pExact (n-1) p
-
-pParens :: Parser a -> Parser a
+-- Parser combinats
+pParens :: Provides state Char Char => P state b -> P state b
 pParens p = pLParen *> p <* pRParen
 
-pBraces :: Parser a -> Parser a
+pBraces :: Provides state Char Char => P state b -> P state b
 pBraces p = pLBrace *> p <* pRBrace
 
-pBrackets :: Parser a -> Parser a
+pBrackets :: Provides state Char Char => P state b -> P state b
 pBrackets p = pLBracket *> p <* pRBracket
 
 -- | eg [1,2,3]
-listParser :: Parser a -> Parser [a]
+listParser :: Provides state Char Char => P state a -> P state [a]
 listParser = pBrackets . pListSep pComma
+
 
 -- | eg (1,2,3)
 -- tupleParser :: Parser a -> Parser [a]
 tupleParser = pParens . pListSep pComma
 
--- pTuple :: [Parser a] -> Parser [a]
+pTuple :: Provides st Char Char => [P st a] -> P st [a]
 pTuple []     = [] <$ pParens pSpaces
 pTuple (p:ps) = pParens $ (:) <$> lexeme p <*> mapM ((pComma *>) . lexeme) ps
 
@@ -295,36 +279,43 @@ pTuple (p:ps) = pParens $ (:) <$> lexeme p <*> mapM ((pComma *>) . lexeme) ps
 data Month = Jan | Feb | Mar | Apr | May | Jun | Jul | Aug | Sep | Oct | Nov | Dec
            deriving (Enum, Bounded, Eq, Show, Ord)
 
--- pDayMonthYear :: (Num d, Num y) => Parser (d, Int, y)
+pDayMonthYear :: (Num d, Num y, Provides state Char Char 
+                              , Provides state (Char, Char) Char
+                              , Provides state (Token Char) String) => P state (d, Int, y)
 pDayMonthYear = lexeme $
                 (,,) <$> pDayNum <*> (pSym '-' *> pMonthNum) <*> (pSym '-' *> pYearNum)
   where
-    -- pMonthNum :: Parser Int
-    pMonthNum = ((+1) . fromEnum) <$> ((pEnumRaw {-:: Parser Month-}) <?> "Month (eg Jan)")
+    pMonthNum = ((+1) . (fromEnum :: Month -> Int)) <$> pEnumRaw <?> "Month (eg Jan)"
     pDayNum   = pNaturalRaw <?> "Day (1-31)"
     pYearNum  = pNaturalRaw <?> "Year (eg 2019)"
 
--- pDay :: Parser Day
+pDay :: (Provides state (Char, Char) Char,
+         Provides state (Token Char) String,
+         Provides state Char Char) => P state Day
+
 pDay = (\(d,m,y) -> fromGregorian y m d) <$> pDayMonthYear
 
 
 ------------------------------------------------------------------------
 -- Quoted Strings
 
--- pParentheticalString :: Char -> Parser String
+pParentheticalString
+  :: (Provides state Char Char,
+      Provides state (Char -> Bool, [Char], Char) token) => Char -> P state [token]
+
 pParentheticalString d = lexeme $ pSym d *> pList pNonQuoteVChar <* pSym d
   where
-    pNonQuoteVChar :: Parser Char
-    pNonQuoteVChar = pSym (\c -> visibleChar c && c /= d, "Character in a string set off from main text by delimiter, e.g. double-quotes or comment token", 'y')
-
-    visibleChar :: Char -> Bool
+    pNonQuoteVChar = pSym (\c -> visibleChar c && c /= d, 
+                          "Character in a string set off from main text by delimiter, e.g. double-quotes or comment token", 'y')
+    -- visibleChar :: Char -> Bool
     visibleChar c = '\032' <= c && c <= '\126'
 
--- pQuotedString :: Parser String
+pQuotedString
+  :: (Provides state (Char -> Bool, [Char], Char) token,
+      Provides state Char Char) =>
+     P state [token]
 pQuotedString = pParentheticalString '"'
 
-
-{-
 ------------------------------------------------------------------------
 -- Read-compatability
 
@@ -338,8 +329,9 @@ parserReadsPrec p _ s = [parse ((,) <$> p <*> pMunch (const True)) . createStr $
 ------------------------------------------------------------------------
 -- Running parsers
 
+type TriplePos = (Int, Int, Int)
 -- | The lower-level interface. (Returns all errors).
-execParser :: Parser a -> String -> (a, [Error UUpos])
+execParser :: Parser a -> String -> (a, [Error TriplePos])
 execParser p = parse ((,) <$> p <*> pEnd) . createStr
 
 -- | The higher-level interface. (Calls 'error' with a simplified
@@ -355,14 +347,14 @@ runParser inputName p s | (a,b) <- execParser p s =
          -- generally not helpful... but the pruning does discard info...
 
 -- | Produce a single simple, user-friendly error message
-pruneError :: String -> [UUError Parseros] -> String
+pruneError :: String -> [Error TriplePos] -> String
 pruneError _ [] = ""
 pruneError _ (DeletedAtEnd x     : _) = printf "Unexpected '%s' at end." x
 pruneError s (Inserted _ pos exp : _) = prettyError s exp pos
 pruneError s (Deleted  _ pos exp : _) = prettyError s exp pos
 
-prettyError :: String -> [String] -> Parseros -> String
-prettyError s exp p@(Parseros c _ _) = printf "Expected %s at %s :\n%s\n%s\n%s\n"
+prettyError :: String -> [String] -> TriplePos -> String
+prettyError s exp p@(line, c, abs) = printf "Expected %s at %s :\n%s\n%s\n%s\n"
                                     (show_expecting exp)
                                     (show p)
                                     aboveString
@@ -373,5 +365,3 @@ prettyError s exp p@(Parseros c _ _) = printf "Expected %s at %s :\n%s\n%s\n%s\n
     aboveString = replicate 30 ' ' ++ "v"
     belowString = replicate 30 ' ' ++ "^"
     inputFrag   = replicate (30 - c) ' ' ++ (take 71 $ drop (c - 30) s')
--}
--}
