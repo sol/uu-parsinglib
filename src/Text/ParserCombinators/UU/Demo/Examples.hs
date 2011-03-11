@@ -13,7 +13,7 @@
 module Text.ParserCombinators.UU.Demo.Examples  where
 import Data.Char
 import Text.ParserCombinators.UU 
-import Text.ParserCombinators.UU.MergeAndPermute
+import Text.ParserCombinators.UU.Utils
 import Text.ParserCombinators.UU.BasicInstances
 import System.IO
 import GHC.IO.Handle.Types
@@ -22,7 +22,7 @@ import GHC.IO.Handle.Types
 
 -- | The fuction @`run`@ runs the parser and shows both the result, and the correcting steps which were taken during the parsing process.
 run :: Show t =>  Parser t -> String -> IO ()
-run p inp = do  let r@(a, errors) =  parse ( (,) <$> p <*> pEnd) (createStr (0,0,0) inp)
+run p inp = do  let r@(a, errors) =  parse ( (,) <$> p <*> pEnd) (createStr (LineColPos 0 0 0) inp)
                 putStrLn "--"
                 putStrLn ("-- > Result: " ++ show a)
                 if null errors then  return ()
@@ -33,7 +33,7 @@ run p inp = do  let r@(a, errors) =  parse ( (,) <$> p <*> pEnd) (createStr (0,0
                    show_errors = sequence_ . (map (putStrLn . show))
 
 -- | Our first two parsers are simple; one recognises a single 'a' character and the other one a single 'b'. Since we will use them later we 
---   convert the recognsied character into String so they can be easily combined.
+--   convert the recognsised character into `String` so they can be easily combined.
 pa  ::Parser String 
 pa  = lift <$> pSym 'a'
 pb  :: Parser String 
@@ -78,7 +78,7 @@ test3 = run pa "b"
 
 -- | The combinator @`<++>`@ applies two parsers sequentially to the input and concatenates their results:
 --
--- > run (pa <++> pa) "aa"@:
+-- > run (pa <++> pa) "aa":
 --
 -- > Result: "aa"
 -- 
@@ -94,21 +94,20 @@ test4 = run pa2 "aa"
 -- | The function @`pSym`@ is overloaded. The type of its argument determines how to interpret the argument. Thus far we have seen single characters, 
 --   but we may pass ranges as well as argument: 
 --
--- > run (pList (pSym ('a','z'))) "doaitse"
+-- > run (pList (pRange ('a','z'))) "doaitse"
 --
 --
 -- > Result: "doaitse"
 -- 
 
-test5 =  run  (pList (pSym ('a','z'))) "doaitse"
+test5 =  run  (pList pLower) "doaitse"
 paz :: Parser String
-paz = pList (pSym ('a', 'z'))
+paz = pList pLower
 
 -- | An even more general instance of @`pSym`@ takes a triple as argument: a predicate, 
---   a string indicating what is expected, 
---   and the value to insert if nothing can be recognised: 
+--   a string indicating what is expected, and the value to insert if nothing can be recognised with the associated insertion cost: 
 -- 
--- > run (pSym (\t -> 'a' <= t && t <= 'z', "'a'..'z'", 'k')) "1"
+-- > run (pSatisfy  (\t -> 'a' <= t && t <= 'z') (Insertion "'a'..'z'" 'k' 5)) "1"
 --
 --
 -- > Result: 'k'
@@ -119,7 +118,7 @@ paz = pList (pSym ('a', 'z'))
 
 test6 :: IO ()
 test6 = run  paz' "1"
-paz' = pSym (\t -> 'a' <= t && t <= 'z', "'a'..'z'", 'k')
+paz' = pSatisfy (\t -> 'a' <= t && t <= 'z') (Insertion "'a'..'z'"  'k' 5)
 
 -- | The parser `pCount` recognises a sequence of elements, throws away the results of the recognition process (@ \<$ @), and just returns the number of returned elements.
 --   The choice combinator @\<\<|>@ indicates that preference is to be given to the left alternative if it can make progress. This enables us to specify greedy strategies:
@@ -130,8 +129,7 @@ paz' = pSym (\t -> 'a' <= t && t <= 'z', "'a'..'z'", 'k')
 -- 
 
 test7 :: IO ()
-test7 = run (pCount pa) "aaaaa"
-pCount p = (+1) <$ p <*> pCount p <<|> pReturn 0
+test7 = run (pCount pa :: Parser Int) "aaaaa"
 
 -- | The parsers are instance of the class Monad and hence we can use the 
 --   result of a previous parser to construct a following one:  
@@ -146,8 +144,6 @@ pCount p = (+1) <$ p <*> pCount p <<|> pReturn 0
 
 test8 :: IO ()
 test8 = run (do  {l <- pCount pa; pExact l pb}) "aaacabbb"
-pExact 0 p = pReturn []
-pExact n p = (:) <$> p <*> pExact (n-1) p
 
 
 -- | The function @`amb`@ converts an ambigous parser into one which returns all possible parses: 
@@ -253,7 +249,7 @@ expr            = foldr pChainl ( pNatural <|> pParens expr) (map same_prio oper
 test16 :: IO ()
 test16 = run (pList spaces) "  "
 
-ident = ((:) <$> pSym ('a','z') <*> pMunch (\x -> 'a' <= x && x <= 'z') `micro` 2) <* spaces
+ident = ((:) <$> pRange ('a','z') <*> pMunch (\x -> 'a' <= x && x <= 'z') `micro` 2) <* spaces
 idents = pList1 ident
 
 pKey keyw = pToken keyw `micro` 1 <* spaces
@@ -302,29 +298,13 @@ pManyTill :: P st a -> P st b -> P st [a]
 pManyTill p end = [] <$ end 
                   <<|> 
                   (:) <$> p <*> pManyTill p end
-simpleComment   =  string "<!--" 
-                   *> 
-                   pManyTill pAscii  (string "-->")
+simpleComment   =  string "<!--"  *>  pManyTill pAscii  (string "-->")
 
 
 string :: String -> Parser String
-string = pToken-- bracketing expressions
-pParens p =  pSym '(' *> p <* pSym ')'
-pBracks p =  pSym '[' *> p <* pSym ']'
-pCurlys p =  pSym '{' *> p <* pSym '}'
+string = pToken
 
--- parsing numbers
 
-pDigitAsInt = digit2Int <$> pDigit 
-pNatural = foldl (\a b -> a * 10 + b ) 0 <$> pList1 pDigitAsInt
-digit2Int a =  ord a - ord '0'
-
--- parsing letters and identifiers
-pAscii = pSym (chr 0, chr 255)
-pDigit = pSym ('0', '9')
-pLower  = pSym ('a','z')
-pUpper  = pSym ('A','Z')
-pLetter = pUpper <|> pLower
 pVarId  = (:) <$> pLower <*> pList pIdChar
 pConId  = (:) <$> pUpper <*> pList pIdChar
 pIdChar = pLower <|> pUpper <|> pDigit <|> pAnySym "='"
@@ -334,16 +314,17 @@ pAnyToken = pAny pToken
 
 -- parsing two alternatives and returning both rsults
 pIntList :: Parser [Int]
-pIntList       =  pParens ((pSym ';') `pListSep` (read <$> pList1 (pSym ('0', '9'))))
+pIntList       =  pParens ((pSym ';') `pListSep` (read <$> pList1 (pRange ('0', '9'))))
 parseIntString :: Parser [String]
-parseIntString =  pParens ((pSym ';') `pListSep` (         pList1 (pSym ('0', '9'))))
+parseIntString =  pParens ((pSym ';') `pListSep` (         pList1 (pRange('0', '9'))))
 
 #define DEMO(p,i) demo "p" i p
 
 justamessage = "justamessage"
 
-main :: IO ()
-main = do DEMO (pa,  "a")
+show_demos :: IO ()
+show_demos = 
+       do DEMO (pa,  "a")
           DEMO (pa,  "b")
           DEMO (((++) <$> pa <*> pa), "bbab")
           DEMO (pa,  "ba")

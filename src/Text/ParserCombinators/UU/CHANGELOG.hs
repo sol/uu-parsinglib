@@ -1,13 +1,25 @@
 -- | This module just contains the CHANGELOG
 --
--- Version 2.7
+-- Version 2.7.0
 --
 -- Improvement: change of error correction at end of @amb@ combinator, so lookahead is better taken into account
 --
 -- Relatively large change:
---      * complete new implementation of merging/permuting parsers, for which a data structure describing grammars was introduced
---      * a new class @IsParser* was introduced which captures the basic properties of our parsers
---      * ....
+--      * Change to "Data.ListLike" inputs, so a general stream input sturcture is possible; hence we can now parse all instances of @ListLike@
+--
+--      * Completely new implementation of merging/permuting parsers, for which a data structure describing grammars was introduced
+--
+--      * New class @IsParser@ was introduced which captures the basic properties of our parsers
+--
+--      * Inclusion of a module "Text.ParserCombinators.UU.Utils" containing common chacacter based parsers
+--
+--      * Removal of the class Provides, and replaced by separate `pSym`, `pSatisfy` and `pRange`
+--
+--      * Included a Demo directory
+--
+--      * Many other small changes, mostly upwards compatible
+--
+--
 -- Version 2.6.1
 --
 --      * Changed the input to a @Stream@ interface to handle different kind of inputs like @String@, @Data.Text@ and @Data.ByteString@.
@@ -24,7 +36,8 @@
 --
 -- > createStr inp
 --
---      * To work with other inputs, import "Text.ParserCombinators.UU.BasicInstances.List", "Text.ParserCombinators.UU.BasicInstances.Text", "Text.ParserCombinators.UU.BasicInstances.ByteString" or "Text.ParserCombinators.UU.BasicInstances.ByteString.Lazy".
+--      * To work with other inputs, import "Text.ParserCombinators.UU.BasicInstances.List", "Text.ParserCombinators.UU.BasicInstances.Text", 
+--        "Text.ParserCombinators.UU.BasicInstances.ByteString" or "Text.ParserCombinators.UU.BasicInstances.ByteString.Lazy".
 --
 --
 -- Version 2.5.6.1
@@ -54,7 +67,8 @@
 --
 -- Version 2.5.4.1
 --
---      * added a @pSem@ which makes it possible to tell how certain components of merged structures are to be combined before exposing all elements to the outer sem: 
+--      * added a @pSem@ which makes it possible to tell how certain components of merged structures
+--        are to be combined before exposing all elements to the outer sem: 
 --
 -- >  run ( (,)  `pMerge` ( ((++) `pSem` (pMany pa <||> pMany pb)) <||> pOne pc))  "abcaaab"
 -- >
@@ -186,5 +200,5 @@
 
 module Text.ParserCombinators.UU.CHANGELOG () where
 
-
+dummy :: a
 dummy = undefined

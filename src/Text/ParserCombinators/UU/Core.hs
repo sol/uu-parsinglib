@@ -10,7 +10,7 @@ module Text.ParserCombinators.UU.Core
   ( -- * Classes
     IsParser,
     ExtAlternative (..),
-    Provides (..),
+--    Provides (..),
     Eof (..),
     IsLocationUpdatedBy (..),
     StoresErrors (..),
@@ -34,7 +34,7 @@ module Text.ParserCombinators.UU.Core
     pEnd,
     pSwitch,
     pSymExt,
-    pSym,
+--     pSym,
     -- ** Calling Parsers
     parse, parse_h,
     -- ** Acessing various components    
@@ -97,6 +97,7 @@ infix   2  <?>
 infixl  3  <<|>     
 infixl  2 `opt`
 
+{-
 -- | The function `splitState` playes a crucial role in splitting up the state. 
 --   The `symbol` parameter tells us what kind of thing, and even which value of that kind, is expected from the input.
 --   The @state@  and  and the @symbol@ type together determine what type of @token@ is to be returned. 
@@ -106,6 +107,7 @@ infixl  2 `opt`
 --   recognised piece of input (the @token@) and the remaining input of type @state@.
 class  Provides state symbol token | state symbol -> token  where
        splitState   ::  symbol -> (token -> state  -> Steps a) -> state -> Steps a
+-}
 
 -- | The class `Eof` contains a function `eof` which is used to check whether we have reached the end of the input and `deletAtEnd` 
 --   should discard any unconsumed input at the end of a successful parse.
@@ -313,16 +315,18 @@ instance  Monad (P st) where
 --   the second telling whether the symbol can recognise the empty string and the value which is to be returned in that case,
 --   and the thits the token to be inserted if we want to make this parser continue.
   
-pSymExt ::   (Provides state symbol token) => Nat -> Maybe token -> symbol -> P state token
-pSymExt l e insert  = P t (Just t) l e
-                 where t = T ( \ k inp -> splitState insert k inp)
-                             ( \ k inp -> splitState insert (\ t inp' -> push t (k inp')) inp)
-                             ( \ k inp -> splitState insert (\ _ inp' -> k inp') inp)
+pSymExt ::  (forall a. (token -> state  -> Steps a) -> state -> Steps a) -> Nat -> Maybe token -> P state token
+pSymExt splitState l e   = mkParser (Just t)  e l
+                 where t = T (        splitState                       )
+                             ( \ k -> splitState  (\ t -> push t . k)  )
+                             ( \ k -> splitState  (\ _ -> k )          )
 
+{-
 -- | @`pSym`@ covers the most common case of recognsiing a symbol: a single token is removed form the input, 
 --   and it cannot recognise the empty string, and if needed th symbol itself is returned as the inserted token
 pSym    ::   (Provides state symbol token) =>                       symbol -> P state token
 pSym  s   = pSymExt (Succ (Zero Infinite)) Nothing s 
+-}
 
 
 -- | `micro` inserts a `Cost` step into the sequence representing the progress the parser is making; 
@@ -600,7 +604,7 @@ getLength l            = l
 nat_min :: Nat -> Nat -> Int -> ( Nat  --  the actual minimum length
                                 , Bool --  whether aternatives should be swapped
                                 ) 
-nat_min (Zero _)   (Zero _)     _   = error "Choice between two possibly empty alternatives: add a call to doNotInterpret to either of the operands"
+nat_min (Zero l)   (Zero r)      n   = (Zero (fst(nat_min l r (n-1))), False) 
 nat_min l          rr@(Zero r)   n  = trace' "Right Zero in nat_min\n"  (let (m,_) = nat_min l r (n-1)
                                                                          in (Zero m, True))
 nat_min ll@(Zero l)   r          n  = trace' "Left Zero in nat_min\n"   (let (m,_) = nat_min l r (n-1)

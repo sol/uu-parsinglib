@@ -9,7 +9,7 @@ Maintainer:          Doaitse Swierstra
 Stability:           stable, but evolving
 Homepage:            http://www.cs.uu.nl/wiki/bin/view/HUT/ParserCombinators
 Bug-reports:         mailto:doaitse@swierstra.net      
-Synopsis:            Online, error-correcting parser combinators; monadic and applicative interfaces       
+Synopsis:            Online, error-correcting parser combinators; monadic, applicative, merging and permuting interfaces       
 Cabal-Version:       >=1.4
 Description:         New version of the Utrecht University parser combinator library, which  provides online, error correction, 
                      annotation free, applicative style parser combinators. In addition to this we do  provide a monadic interface.
@@ -32,7 +32,7 @@ Category:            Parsing Text
 Library
   hs-source-dirs:    src
 
-  Build-Depends:     base >= 4.2 && <5, ListLike >= 3.0.1
+  Build-Depends:     base >= 4.2 && <5, time, ListLike >= 3.0.1
 
   Exposed-modules:   Text.ParserCombinators.UU
                      Text.ParserCombinators.UU.CHANGELOG

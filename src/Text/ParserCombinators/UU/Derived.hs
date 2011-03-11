@@ -149,7 +149,7 @@ pExact :: (IsParser f) => Int -> f a -> f [a]
 pExact n p | n == 0 = pure []
            | n >  0 = (:) <$> p <*> pExact (n-1) p
 
--- pBetween :: (IsParser f) => Int -> Int -> f a -> f [a]
+pBetween :: (IsParser f) => Int -> Int -> f a -> f [a]
 pBetween m n p |  n < 0 || m <0 =  error "negative arguments to pBwteeen"
                |  m > n         =  empty
                |  otherwise     =  (++) <$> pExact m p <*> pAtMost (n-m) p
@@ -171,7 +171,7 @@ pCount p = (\_ b -> b+1) <$> p <*> pCount p  `opt` 0
 pAny :: IsParser p => (a -> p a1) -> [a] -> p a1
 pAny  f l =  foldr (<|>) pFail (map f l)
 
--- | Parses any of the symbols in 'l'.
-pAnySym :: Provides st s s => [s] -> P st s
-pAnySym = pAny pSym 
+-- | pSym was removed because the class Provides was eliminated
+-- pAnySym :: Provides st s s => [s] -> P st s
+-- pAnySym = pAny pSym 
 

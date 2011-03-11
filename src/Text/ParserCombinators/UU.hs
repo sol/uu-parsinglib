@@ -14,7 +14,7 @@
 --
 -- * how to use the permutating/merging parsers
 --
--- * to see the parsers in action load the module "Text.ParserCombinators.UU.Demo.Examples" or "Text.ParserCombinators.UU.Demo.MergeAndPermute"in @ghci@ and type @main@ or @demo_merge@, while looking at the corresponding code
+-- * to see the parsers in action load the module "Text.ParserCombinators.UU.Demo.Examples" or "Text.ParserCombinators.UU.Demo.MergeAndPermute"in @ghci@ and type @show_demos@, while looking at the corresponding code
 --
 
 module Text.ParserCombinators.UU ( module Text.ParserCombinators.UU.Core
