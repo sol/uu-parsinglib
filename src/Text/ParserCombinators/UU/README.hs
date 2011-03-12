@@ -1,4 +1,4 @@
--- | Tis module contains some background information about a completely new version of the Utrecht parser combinator library.
+-- | This module contains some background information about a completely new version of the Utrecht parser combinator library.
 --
 --   Background material
 --

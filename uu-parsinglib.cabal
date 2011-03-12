@@ -9,18 +9,18 @@ Maintainer:          Doaitse Swierstra
 Stability:           stable, but evolving
 Homepage:            http://www.cs.uu.nl/wiki/bin/view/HUT/ParserCombinators
 Bug-reports:         mailto:doaitse@swierstra.net      
-Synopsis:            Online, error-correcting parser combinators; monadic, applicative, merging and permuting interfaces       
+Synopsis:            Fast, online, error-correcting, monadic, applicative, merging, permuting, idiomatic parser combinators.
 Cabal-Version:       >=1.4
 Description:         New version of the Utrecht University parser combinator library, which  provides online, error correction, 
-                     annotation free, applicative style parser combinators. In addition to this we do  provide a monadic interface.
-                     Parsers do analyse themselves to avoid commonly made errors. A recent addition was the combinator @`pMerge`@ and 
-                     associates which generalises merging and permuting parsers.
+                     annotation free, applicative style parser combinators. In addition to this we do  provide a monadic and idomatic interface.
+                     Parsers do analyse themselves to avoid commonly made errors. A recent addition was the combinator @`<||>`@ and 
+                     associates, which generalises merging and permuting parsers.
                      .
-                     The modules "Text.ParserCombinators.UU.Demo.Examples" and "Text.ParserCombinators.UU.Demo.MergeAndpermute" contain a ready-made 
-                     @show_examples@  function,
-                     which can be called to see e.g. the error correction at work. It contains haddock documentation too; 
-                     try all the small tests for yourself to see the correction process at work, and to get a 
-                     feeling for how to use the various combinators. 
+                     This version is based on the module "Data.Listlike", and as a result a great variatey of input structures (@Strings@, @ByteStrings@, etc.) can be handled
+                     .
+                     The modules "Text.ParserCombinators.UU.Demo.Examples", "Text.ParserCombinators.UU.Idioms" and "Text.ParserCombinators.UU.Demo.MergeAndpermute" 
+                     contain a ready-made  @show_examples@  function,
+                     which can be called (e.g. from @ghci@) to see e.g. the error correction at work. It contains extensive haddock documentation, so why not just take a look                           to see the correction process at work, and to get a feeling for how the various combinators can be used. 
                      .
                      The file "Text.ParserCombinators.UU.CHANGELOG" contains a log of the most recent changes and additions
                      .
@@ -42,5 +42,6 @@ Library
                      Text.ParserCombinators.UU.Derived
                      Text.ParserCombinators.UU.MergeAndPermute
                      Text.ParserCombinators.UU.Utils
+                     Text.ParserCombinators.UU.Idioms
                      Text.ParserCombinators.UU.Demo.Examples
                      Text.ParserCombinators.UU.Demo.MergeAndPermute

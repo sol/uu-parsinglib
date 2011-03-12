@@ -20,6 +20,10 @@
 --
 --      * Included a Demo directory, with a modules for demonstrating nromal parsers and one aimed at merging parsers
 --
+--      * added the module "Text.ParserCombinaors.UU.Idioms", which contains specialised version for the idiomatic notation; it infers the
+--        sequental composition operators from the types of the operands; @String@-s and @Char@-s are not supposed to contribute to the result,
+--        function parameters are lifted using `pure`, and normal parsers are composed with `<*>`.
+--
 --      * Many other small changes, mostly upwards compatible or invisible (code cleanup)
 --
 -- Version 2.6.1
