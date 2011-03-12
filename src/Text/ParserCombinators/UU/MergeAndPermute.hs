@@ -15,7 +15,7 @@ infixl 4  <||>, <<||>
 -- * The data type `Gram`
 -- | Since we want to get access to the individial parsers which recognise a consecutive piece of the input text we
 --   define a new data type, which lifts the underlying parsers to the grammatical level, so they can be transformed, manipulated, and run in a piecewise way.
---   `Gram` is defined in such a way that we can always access the first parsers to be ran from such a structure. 
+--   `Gram` is defined in such a way that we can always access the first parsers to be ran from such a structure.
 --   We require that all the `Alt`s do not recognise the empty string. These should be covered by the `Maybe` in the `Gram` constructor.
 data Gram f a =             Gram  [Alt f a]  (Maybe a) 
 data Alt  f a =  forall b . Seq   (f b)      (Gram f (b -> a)) 
@@ -24,17 +24,18 @@ data Alt  f a =  forall b . Seq   (f b)      (Gram f (b -> a))
 instance (Show a) => Show (Gram f a) where
   show (Gram l ma) = "Gram " ++ show  (length l) ++ " " ++ show ma 
 
--- | The function `mkGram` splits a simple parser into the possibly empty part and the non-empty part. 
---   The non-empty part recognises a consecutive part of the input. 
---   Here we use the function `getOneP` and `getZeroP` which are provided in the uu-parsinglib package, 
+-- | The function `mkGram` splits a simple parser into the possibly empty part and the non-empty part.
+--   The non-empty part recognises a consecutive part of the input.
+--   Here we use the function `getOneP` and `getZeroP` which are provided in the uu-parsinglib package,
 --   but they could easily be provided by other packages too.
 
+mkGram :: P t a -> Gram (P t) a
 mkGram p =  case getOneP p of
             Just p -> Gram [p `Seq` Gram  [] (Just id)] (getZeroP p)
             Nothing -> Gram [] (getZeroP p)
 
 -- * Class instances for Gram
--- | We define instances for the data type `Gram` for `Functor`, `Applicative`,  `Alternative` and `ExtAlternative` 
+-- | We define instances for the data type `Gram` for `Functor`, `Applicative`,  `Alternative` and `ExtAlternative`
 instance Functor f => Functor (Gram f) where
   fmap f (Gram alts e) = Gram (map (f <$>) alts) (f <$> e)
 
