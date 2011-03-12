@@ -176,18 +176,6 @@ data  P   st  a =  P  (T  st a)         --   actual parsers
                       Nat               --   minimal length of the non-empty part
                       (Maybe a)         --   the possibly  empty alternative with value 
 
--- | `unParser_h` retreives the history parser from the descriptor
-unParser_h :: P b a -> (a -> b -> Steps r) -> b -> Steps r
-unParser_h (P (T  h   _  _ ) _ _ _ )  =  h
-
--- | `unParser_f` retreives the future parser from the descriptor
-unParser_f :: P b a -> (b -> Steps r) -> b -> Steps (a, r)
-unParser_f (P (T  _   f  _ ) _ _ _ )  =  f
-
--- | `unParser_r` retreives therecogniser from the descriptor
-unParser_r :: P b a -> (b -> Steps r) -> b -> Steps r
-unParser_r (P (T  _   _  r ) _ _ _ )  =  r
-
 
 instance Show (P st a) where
   show (P _ nt n e) = "P _ " ++ maybe "Nothing" (const "(Just _)") nt ++ " (" ++ show n ++ ") " ++ maybe "Nothing" (const "(Just _)") e
@@ -200,16 +188,16 @@ getOneP (P _ onep      l                  ep )  =  Just( mkParser onep Nothing (
 
 -- | `getZeroP` retreives the possibly empty part from a descriptor
 getZeroP :: P t a -> Maybe a
-getZeroP (P _ _ _ z)         =  z
+getZeroP (P _ _ _ z)  =  z
 
--- | `mkParser` combines the non-empty descriptor part and the empty descriptor part into a descriptor tupled with the parser  triple
+-- | `mkParser` combines the non-empty descriptor part and the empty descriptor part into a descriptor tupled with the parser triple
 mkParser :: Maybe (T st a) -> Maybe a -> Nat -> P st a
 mkParser np@Nothing   ne@Nothing  l  =  P empty           np l ne           
 mkParser np@(Just nt) ne@Nothing  l  =  P nt              np l ne          
 mkParser np@Nothing   ne@(Just a) l  =  P (pure a)        np l ne       
 mkParser np@(Just nt) ne@(Just a) l  =  P (nt <|> pure a) np l ne
 
--- combine creates the non-empty parser 
+-- ! `combine` creates the non-empty parser 
 combine :: (Alternative f) => Maybe t1 -> Maybe t2 -> t -> Maybe t3
         -> (t1 -> t -> f a) -> (t2 -> t3 -> f a) -> Maybe (f a)
 combine Nothing   Nothing  _  _     _   _   = Nothing      -- this Parser always fails
@@ -225,26 +213,20 @@ instance   Functor (P  state) where
   fmap f   (P  ap np l me)   =  mkParser (fmap (fmap f)  np)  (f <$> me)  l 
   f <$     (P  ap np l me)   =  mkParser (fmap (f <$)    np)  (f <$  me)  l 
 
-
 instance   Applicative (P  state) where
-  P ap np  pl pe <*> ~(P aq nq  ql qe)  =  let newnp = combine np pe aq nq (<*>) (<$>)
-                                           in  mkParser newnp (pe <*> qe) ( nat_add pl ql) 
-  P ap np pl pe  <*  ~(P aq nq  ql qe)   = let newnp = combine np pe aq nq (<*) (<$)
-                                           in  mkParser newnp (pe <* qe) (nat_add pl ql)
-  P ap np pl pe  *>  ~(P aq nq  ql qe)   = let newnp = combine np pe aq nq (*>)  (flip const)
-                                           in  mkParser newnp (pe *> qe) (nat_add pl ql) 
-  pure a                                 = P (pure a) Nothing (Zero Infinite)(Just a)
+  P ap np  pl pe <*> ~(P aq nq  ql qe)  = mkParser (combine np pe aq nq (<*>) (<$>))       (pe <*> qe)  (nat_add pl ql) 
+  P ap np pl pe  <*  ~(P aq nq  ql qe)  = mkParser (combine np pe aq nq (<*)  (<$))        (pe <* qe )  (nat_add pl ql)
+  P ap np pl pe  *>  ~(P aq nq  ql qe)  = mkParser (combine np pe aq nq (*>) (flip const)) (pe *> qe )  (nat_add pl ql) 
+  pure a                                = mkParser Nothing                                 (Just a   )  (Zero Infinite)
 
-
-instance   Alternative (P   state) where 
+instance Alternative (P   state) where 
   P ap np  pl pe <|> P aq nq ql qe 
     =  let (rl, b) = trace' "calling natMin from <|>" (nat_min pl ql 0)
            Nothing `alt` q  = q
            p       `alt` Nothing = p
            Just p  `alt` Just q  = Just (p <|>q)
-       in  let nnp =  (if b then  flip  else id) alt np nq
-           in  mkParser nnp (pe <|> qe) rl
-  empty  = mkParser empty empty  Infinite  -- the always failing parser!
+       in  mkParser ((if b then  flip  else id) alt np nq) (pe <|> qe) rl
+  empty  = mkParser empty empty  Infinite 
 
 instance ExtAlternative (P st) where
   P ap np pl pe <<|> P aq nq ql qe 
@@ -292,42 +274,32 @@ instance  Monad (P st) where
                                             in  (eq, combine t nq , t `alt` aq)
                 Nothing  `alt` q    = q
                 Just p   `alt` q    = p <|> q
-                t = case np of
-                    Nothing -> Nothing
-                    Just (T h _ _  ) -> Just (T  (  \k -> h (\ a -> unParser_h (a2q a) k))
-                                                 (  \k -> h (\ a -> unParser_f (a2q a) k))
-                                                 (  \k -> h (\ a -> unParser_r (a2q a) k)))
+                t = fmap (\  (T h _ _  ) ->      (T  (  \k -> h (\ a -> unParser_h (a2q a) k))
+                                                     (  \k -> h (\ a -> unParser_f (a2q a) k))
+                                                     (  \k -> h (\ a -> unParser_r (a2q a) k))) ) np
                 combine Nothing     Nothing     = Nothing
                 combine l@(Just _ ) Nothing     =  l
                 combine Nothing     r@(Just _ ) =  r
                 combine (Just l)    (Just r)    = Just (l <|> r)
+                -- | `unParser_h` retreives the history parser from the descriptor
+                unParser_h :: P b a -> (a -> b -> Steps r) -> b -> Steps r
+                unParser_h (P (T  h   _  _ ) _ _ _ )  =  h
+                -- | `unParser_f` retreives the future parser from the descriptor
+                unParser_f :: P b a -> (b -> Steps r) -> b -> Steps (a, r)
+                unParser_f (P (T  _   f  _ ) _ _ _ )  =  f
+                -- | `unParser_r` retreives therecogniser from the descriptor
+                unParser_r :: P b a -> (b -> Steps r) -> b -> Steps r
+                unParser_r (P (T  _   _  r ) _ _ _ )  =  r
        return  = pure 
 
--- | Many parsing libraries do not make a distinction between the terminal symbols of the language recognised 
---   and the tokens actually constructed from the  input. 
---   This happens e.g. if we want to recognise an integer or an identifier: 
---   we are also interested in which integer occurred in the input, or which identifier. 
---   The function `pSymExt` takes as argument a value of some type @symbol@, and returns a value of type @token@.
---   
---   Since `pSymExt' is overloaded, both the type and the value of the @symbol@ parameter
---   determine how to decompose the input in a @token@ and the remaining input.
---   `pSymExt` takes three parameters: the first describing the minimal number of tokens recognised, 
---   the second telling whether the symbol can recognise the empty string and the value which is to be returned in that case,
---   and the thits the token to be inserted if we want to make this parser continue.
-  
+-- |  The function `pSymExt` converts a very basic parser, passed to at as the function `splitState`, 
+--    the minmal number of tokens recognised by the function and and empty descriptor, and builds a @P@ parser out of this, 
+--    i.e. lift the behaviour to a fture pareser, a histroy parser and a recogniser.  
 pSymExt ::  (forall a. (token -> state  -> Steps a) -> state -> Steps a) -> Nat -> Maybe token -> P state token
 pSymExt splitState l e   = mkParser (Just t)  e l
                  where t = T (        splitState                       )
                              ( \ k -> splitState  (\ t -> push t . k)  )
                              ( \ k -> splitState  (\ _ -> k )          )
-
-{-
--- | @`pSym`@ covers the most common case of recognsiing a symbol: a single token is removed form the input, 
---   and it cannot recognise the empty string, and if needed th symbol itself is returned as the inserted token
-pSym    ::   (Provides state symbol token) =>                       symbol -> P state token
-pSym  s   = pSymExt (Succ (Zero Infinite)) Nothing s 
--}
-
 
 -- | `micro` inserts a `Cost` step into the sequence representing the progress the parser is making; 
 --   for its use see `"Text.ParserCombinators.UU.Demos.Examples"`
@@ -340,9 +312,8 @@ P _  np  pl pe `micro` i
                                              ( \ k st -> pr (Micro i .k) st))
     in mkParser nnp pe pl
 
--- |  For the precise functioning of the `amb` combinators, 
---    converts an ambiguous parser into a parser which returns a list of possible recognitions,
---    we refer to the technical report mentioned in the README file
+-- |  For the precise functioning of the `amb` combinators see the paper cited in the "Text.ParserCombinators.UU.README";
+--    it converts an ambiguous parser into a parser which returns a list of possible recognitions,
 amb :: P st a -> P st [a]
 amb (P _  np  pl pe) 
  = let  combinevalues  :: Steps [(a,r)] -> Steps ([a],r)
@@ -355,9 +326,7 @@ amb (P _  np  pl pe)
         nep = (fmap pure pe)
     in  mkParser nnp nep pl
 
-
-
-
+-- | `pErrors` returns the error messages that were generated since its last call
 pErrors :: StoresErrors st error => P st [error]
 pErrors = let nnp = Just (T ( \ k inp -> let (errs, inp') = getErrors inp in k    errs    inp' )
                             ( \ k inp -> let (errs, inp') = getErrors inp in push errs (k inp'))
@@ -365,14 +334,20 @@ pErrors = let nnp = Just (T ( \ k inp -> let (errs, inp') = getErrors inp in k  
               nep =  (Just (error "pErrors cannot occur in lhs of bind"))  -- the errors consumed cannot be determined statically!
           in mkParser nnp  Nothing (Zero Infinite)
 
-
-
+-- | `pPos` returns the current input position
 pPos :: HasPosition st pos => P st pos
 pPos =  let nnp = Just ( T ( \ k inp -> let pos = getPos inp in k    pos    inp )
-                       ( \ k inp -> let pos = getPos inp in push pos (k inp))
-                       ( \ k inp -> let pos = getPos inp in           k inp ))
+                           ( \ k inp -> let pos = getPos inp in push pos (k inp))
+                           ( \ k inp ->                                   k inp ))
             nep =  Just (error "pPos cannot occur in lhs of bind")  -- the errors consumed cannot be determined statically!
         in mkParser nnp Nothing (Zero Infinite)
+
+-- | `pState` returns the current input state
+pState :: P st st
+pState =   let nnp = Just ( T ( \ k inp -> k inp inp)
+                          ( \ k inp -> push inp (k inp))
+                          ($))
+           in mkParser nnp Nothing  (Zero Infinite) 
 
 -- | The function `pEnd` should be called at the end of the parsing process. It deletes any unconsumed input, turning them into error messages
 
@@ -490,9 +465,8 @@ eval (Apply  f   l   )  =   f (eval l)
 eval (End_f   _  _   )  =   error "dangling End_f constructor"
 eval (End_h   _  _   )  =   error "dangling End_h constructor"
 
-
-
--- | `norm` makes sure that the head of the seqeunce contains progress information. It does so by pushing information about the result (i.e. the `Apply` steps) backwards.
+-- | `norm` makes sure that the head of the seqeunce contains progress information. 
+--   It does so by pushing information about the result (i.e. the `Apply` steps) backwards.
 --
 norm ::  Steps a ->  Steps   a
 norm     (Apply f (Step   p    l  ))   =   Step  p (Apply f l)
@@ -604,10 +578,10 @@ getLength l            = l
 nat_min :: Nat -> Nat -> Int -> ( Nat  --  the actual minimum length
                                 , Bool --  whether aternatives should be swapped
                                 ) 
-nat_min (Zero l)   (Zero r)      n   = (Zero (fst(nat_min l r (n-1))), False) 
-nat_min l          rr@(Zero r)   n  = trace' "Right Zero in nat_min\n"  (let (m,_) = nat_min l r (n-1)
+nat_min (Zero l)   (Zero r)      n   = (Zero (fst(nat_min l r (n+1))), False) 
+nat_min l          rr@(Zero r)   n  = trace' "Right Zero in nat_min\n"  (let (m,_) = nat_min l r (n+1)
                                                                          in (Zero m, True))
-nat_min ll@(Zero l)   r          n  = trace' "Left Zero in nat_min\n"   (let (m,_) = nat_min l r (n-1)
+nat_min ll@(Zero l)   r          n  = trace' "Left Zero in nat_min\n"   (let (m,_) = nat_min l r (n+1)
                                                                          in (Zero m, False))
 nat_min (Succ ll)  (Succ rr)     n  = if n > 1000 then error "problem with comparing lengths" 
                                       else trace' ("Succ in nat_min " ++ show n ++ "\n")         

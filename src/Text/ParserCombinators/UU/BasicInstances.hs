@@ -59,10 +59,10 @@ data Error  pos =    Inserted String pos        Strings
                      -- ^ the unconsumed part of the input was deleted
 
 instance (Show pos) => Show (Error  pos) where 
- show (Inserted s pos expecting)       = "-- >    Inserted  " ++  s ++  show_expecting  pos expecting 
- show (Deleted  t pos expecting)       = "-- >    Deleted   " ++  t ++  show_expecting  pos expecting
- show (Replaced old new pos expecting) = "-- >    Replaced  " ++ old ++ " by "++ new ++  show_expecting  pos expecting
- show (DeletedAtEnd t)                 = "-- >    The token " ++ t ++ " was not consumed by the parsing process."
+ show (Inserted s pos expecting)       = "--    Inserted  " ++  s ++  show_expecting  pos expecting 
+ show (Deleted  t pos expecting)       = "--    Deleted   " ++  t ++  show_expecting  pos expecting
+ show (Replaced old new pos expecting) = "--    Replaced  " ++ old ++ " by "++ new ++  show_expecting  pos expecting
+ show (DeletedAtEnd t)                 = "--    The token " ++ t ++ " was not consumed by the parsing process."
 
 
 

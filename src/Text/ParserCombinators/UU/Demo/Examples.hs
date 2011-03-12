@@ -20,13 +20,100 @@ import GHC.IO.Handle.Types
 
 -- import Control.Monad
 
+#define DEMO(p,i) demo "p" i p
+
+justamessage = "justamessage"
+
+-- | Running the function `show_demos` should give the following output:
+--
+-- >>>   run pa  "a"
+--  Result: "a"
+-- 
+-- >>>   run pa  ""
+--  Result: "a"
+--  Correcting steps: 
+--    Inserted  'a' at position LineColPos 0 0 0 expecting 'a'
+-- 
+-- >>>   run pa  "b"
+--  Result: "a"
+--  Correcting steps: 
+--    Deleted   'b' at position LineColPos 0 0 0 expecting 'a'
+--    Inserted  'a' at position LineColPos 0 1 1 expecting 'a'
+-- 
+-- >>>   run ((++) <$> pa <*> pa)  "bbab"
+--  Result: "aa"
+--  Correcting steps: 
+--    Deleted   'b' at position LineColPos 0 0 0 expecting 'a'
+--    Deleted   'b' at position LineColPos 0 1 1 expecting 'a'
+--    Deleted   'b' at position LineColPos 0 3 3 expecting 'a'
+--    Inserted  'a' at position LineColPos 0 4 4 expecting 'a'
+-- 
+-- >>>   run pa  "ba"
+--  Result: "a"
+--  Correcting steps: 
+--    Deleted   'b' at position LineColPos 0 0 0 expecting 'a'
+-- 
+-- >>>   run pa  "aa"
+--  Result: "a"
+--  Correcting steps: 
+--    The token 'a' was not consumed by the parsing process.
+-- 
+-- >>>   run (pCount pa :: Parser Int)  "aaa"
+--  Result: 3
+-- 
+-- >>>   run (do  {l <- pCount pa; pExact l pb})  "aaacabbbbb"
+--  Result: ["b","b","b","b"]
+--  Correcting steps: 
+--    Deleted   'c' at position LineColPos 0 3 3 expecting one of ['b', 'a']
+--    The token 'b' was not consumed by the parsing process.
+-- 
+-- >>>   run (amb ( (++) <$> pa2 <*> pa3 <|> (++) <$> pa3 <*> pa2))  "aaaaa"
+--  Result: ["aaaaa","aaaaa"]
+-- 
+-- >>>   run (pList pLower)  "doaitse"
+--  Result: "doaitse"
+-- 
+-- >>>   run paz  "abc2ez"
+--  Result: "abcez"
+--  Correcting steps: 
+--    Deleted   '2' at position LineColPos 0 3 3 expecting 'a'..'z'
+-- 
+-- >>>   run (max <$> pParens ((+1) <$> wfp) <*> wfp `opt` 0)  "((()))()(())"
+--  Result: 3
+-- 
+-- >>>   run (pa <|> pb <?> justamessage)  "c"
+--  Result: "b"
+--  Correcting steps: 
+--    Deleted   'c' at position LineColPos 0 0 0 expecting justamessage
+--    Inserted  'b' at position LineColPos 0 1 1 expecting 'b'
+-- 
+-- >>>   run (amb (pEither  parseIntString  pIntList))  "(123;456;789)"
+--  Result: [Left ["123","456","789"],Right [123,456,789]]
+-- 
+show_demos :: IO ()
+show_demos = 
+       do DEMO (pa,  "a")
+          DEMO (pa,  "" )
+          DEMO (pa,  "b")
+          DEMO (((++) <$> pa <*> pa), "bbab")
+          DEMO (pa,  "ba")
+          DEMO (pa,  "aa")
+          DEMO ((pCount pa :: Parser Int),                                 "aaa")
+          DEMO ((do  {l <- pCount pa; pExact l pb}),                       "aaacabbbbb")
+          DEMO ((amb ( (++) <$> pa2 <*> pa3 <|> (++) <$> pa3 <*> pa2)),    "aaaaa")
+          DEMO ((pList pLower),                                            "doaitse")
+          DEMO (paz,                                                       "abc2ez")
+          DEMO ((max <$> pParens ((+1) <$> wfp) <*> wfp `opt` 0),          "((()))()(())")
+          DEMO ((pa <|> pb <?> justamessage),                              "c")
+          DEMO ((amb (pEither  parseIntString  pIntList)),                 "(123;456;789)")
+--          DEMO ((pa *> pMunch ( `elem` "^=*") <* pb),                      "a^=^**^^b")
+
 -- | The fuction @`run`@ runs the parser and shows both the result, and the correcting steps which were taken during the parsing process.
 run :: Show t =>  Parser t -> String -> IO ()
 run p inp = do  let r@(a, errors) =  parse ( (,) <$> p <*> pEnd) (createStr (LineColPos 0 0 0) inp)
-                putStrLn "--"
-                putStrLn ("-- > Result: " ++ show a)
+                putStrLn ("--  Result: " ++ show a)
                 if null errors then  return ()
-                               else  do putStr ("-- > Correcting steps: \n")
+                               else  do putStr ("--  Correcting steps: \n")
                                         show_errors errors
                 putStrLn "-- "
              where show_errors :: (Show a) => [a] -> IO ()
@@ -42,131 +129,19 @@ pc  :: Parser String
 pc = lift <$> pSym 'c'
 lift a = [a]
 
--- | We can now run the parser @`pa`@ on input \"a\", which succeeds:
---
--- > run pa "a" 
---
--- > Result: "a"
---
-
-test1 = run pa "a"
-
--- | If we   run the parser @`pa`@ on the empty input \"\", the expected symbol in inserted, 
---   that the position where it was inserted is reported, and
---   we get information about what was expected at that position: 
---
--- > run pa ""
---
--- > Result: "a"
--- > Correcting steps: 
--- >    Inserted 'a' at position 0 expecting 'a'
--- 
-
-test2 = run pa ""
-
--- | Now let's see what happens if we encounter an unexpected symbol, as in:
---
--- > run pa "b"
---
--- > Result: "a"
--- > Correcting steps: 
--- >    Deleted  'b' at position 0 expecting 'a'
--- >    Inserted 'a' at position 1 expecting 'a'
--- 
-
-test3 = run pa "b"
-
--- | The combinator @`<++>`@ applies two parsers sequentially to the input and concatenates their results:
---
--- > run (pa <++> pa) "aa":
---
--- > Result: "aa"
--- 
-
-
 (<++>) :: Parser String -> Parser String -> Parser String
 p <++> q = (++) <$> p <*> q
 pa2 =   pa <++> pa
 pa3 =   pa <++> pa2
 
-test4 = run pa2 "aa"
-
--- | The function @`pSym`@ is overloaded. The type of its argument determines how to interpret the argument. Thus far we have seen single characters, 
---   but we may pass ranges as well as argument: 
---
--- > run (pList (pRange ('a','z'))) "doaitse"
---
---
--- > Result: "doaitse"
--- 
-
-test5 =  run  (pList pLower) "doaitse"
 paz :: Parser String
-paz = pList pLower
+paz = pList (pSatisfy (\t -> 'a' <= t && t <= 'z') (Insertion "'a'..'z'" 'k' 5)) 
 
--- | An even more general instance of @`pSym`@ takes a triple as argument: a predicate, 
---   a string indicating what is expected, and the value to insert if nothing can be recognised with the associated insertion cost: 
--- 
--- > run (pSatisfy  (\t -> 'a' <= t && t <= 'z') (Insertion "'a'..'z'" 'k' 5)) "1"
---
---
--- > Result: 'k'
--- > Correcting steps: 
--- >    Deleted  '1' at position 0 expecting 'a'..'z'
--- >    Inserted 'k' at position 1 expecting 'a'..'z'
--- 
-
-test6 :: IO ()
-test6 = run  paz' "1"
-paz' = pSatisfy (\t -> 'a' <= t && t <= 'z') (Insertion "'a'..'z'"  'k' 5)
-
--- | The parser `pCount` recognises a sequence of elements, throws away the results of the recognition process (@ \<$ @), and just returns the number of returned elements.
---   The choice combinator @\<\<|>@ indicates that preference is to be given to the left alternative if it can make progress. This enables us to specify greedy strategies:
---
--- > run (pCount pa) "aaaaa"
---
--- > Result: 5
--- 
-
-test7 :: IO ()
-test7 = run (pCount pa :: Parser Int) "aaaaa"
-
--- | The parsers are instance of the class Monad and hence we can use the 
---   result of a previous parser to construct a following one:  
---
--- > run (do  {l <- pCount pa; pExact l pb}) "aaacabbb"
---
--- > Result: ["b","b","b","b"]
--- > Correcting steps: 
--- >    Deleted  'c' at position 3 expecting one of ['a', 'b']
--- >    Inserted 'b' at position 8 expecting 'b'
--- 
-
-test8 :: IO ()
-test8 = run (do  {l <- pCount pa; pExact l pb}) "aaacabbb"
-
-
--- | The function @`amb`@ converts an ambigous parser into one which returns all possible parses: 
---
--- > run (amb ( (++) <$> pa2 <*> pa3 <|> (++) <$> pa3 <*> pa2))  "aaaaa"
---
--- > Result: ["aaaaa","aaaaa"]
--- 
-test9 :: IO ()
-test9 = run (amb ( (++) <$> pa2 <*> pa3 <|> (++) <$> pa3 <*> pa2))  "aaaaa"
-
--- | The applicative style makes it very easy to merge recognsition and computing a result. 
+-- | The applicative style makes it very easy to merge recogition and computing a result. 
 --   As an example we parse a sequence of nested well formed parentheses pairs and
 --   compute the maximum nesting depth with @`wfp`@: 
---
--- > run wfp "((()))()(())" 
---
--- > Result: 3
--- 
-
 wfp :: Parser Int
 wfp =  max <$> pParens ((+1) <$> wfp) <*> wfp `opt` 0
-test10 = run wfp "((()))()(())"
 
 -- | It is very easy to recognise infix expressions with any number of priorities and operators:
 --
@@ -244,8 +219,6 @@ expr            = foldr pChainl ( pNatural <|> pParens expr) (map same_prio oper
 -- > run (pMaybe spaces) " "
 -- > Result: *** Exception: The combinator pMaybe
 -- > requires that it's argument cannot recognise the empty string
-
-
 test16 :: IO ()
 test16 = run (pList spaces) "  "
 
@@ -265,34 +238,6 @@ test13 = run takes_second_alt "if a then if else c"
 test14 = run takes_second_alt "ifx a then if else c"
 
 
--- | The function
---
--- > munch =  pMunch ( `elem` "^=*") 
---
---  returns  the longest prefix of the input obeying the predicate:
---
--- > run munch "==^^**rest" 
---
--- > Result: "==^^**"
--- > Correcting steps: 
--- >    The token 'r' was not consumed by the parsing process.
--- >    The token 'e' was not consumed by the parsing process.
--- >    The token 's' was not consumed by the parsing process.
--- >    The token 't' was not consumed by the parsing process.
--- 
-
-munch :: Parser String
-munch =  pa *> pMunch ( `elem` "^=*") <* pb
-
--- | The effect of the combinator `manytill` from Parsec can be achieved:
---
--- > run simpleComment "<!--123$$-->abc"
--- > Result: "123$$"
--- > Correcting steps: 
--- >    The token 'a' was not consumed by the parsing process.
--- >    The token 'b' was not consumed by the parsing process.
--- >    The token 'c' was not consumed by the parsing process.
--- 
 
 pManyTill :: P st a -> P st b -> P st [a]
 pManyTill p end = [] <$ end 
@@ -318,25 +263,9 @@ pIntList       =  pParens ((pSym ';') `pListSep` (read <$> pList1 (pRange ('0', 
 parseIntString :: Parser [String]
 parseIntString =  pParens ((pSym ';') `pListSep` (         pList1 (pRange('0', '9'))))
 
-#define DEMO(p,i) demo "p" i p
 
-justamessage = "justamessage"
-
-show_demos :: IO ()
-show_demos = 
-       do DEMO (pa,  "a")
-          DEMO (pa,  "b")
-          DEMO (((++) <$> pa <*> pa), "bbab")
-          DEMO (pa,  "ba")
-          DEMO (pa,  "aa")
-          DEMO ((do  {l <- pCount pa; pExact l pb}),   "aaacabbbb")
-          DEMO ((amb ( (++) <$> pa2 <*> pa3 <|> (++) <$> pa3 <*> pa2)),    "aaaaa")
-          DEMO (paz, "ab1z7")
-          DEMO ((pa <|> pb <?> justamessage),   "c")
-          DEMO ((amb (pEither  parseIntString  pIntList)),   "(123;456;789)")
-          DEMO (munch,   "a^=^**^^b")
 
 
 demo :: Show r => String -> String -> Parser r -> IO ()
-demo str  input p= do putStr ("\n===========================================\n>>   run " ++ str ++ "  " ++ show input ++ "\n")
+demo str  input p= do putStr ("-- >>>   run " ++ str ++ "  " ++ show input ++ "\n")
                       run p input

@@ -5,20 +5,22 @@
 -- Improvement: change of error correction at end of @amb@ combinator, so lookahead is better taken into account
 --
 -- Relatively large change:
---      * Change to "Data.ListLike" inputs, so a general stream input sturcture is possible; hence we can now parse all instances of @ListLike@
 --
---      * Completely new implementation of merging/permuting parsers, for which a data structure describing grammars was introduced
+--      * Change to "Data.ListLike" inputs, so a general stream input structure is possible; hence we can now parse all instances of @ListLike@
+--
+--      * Simplified and generalised implementation of merging/permuting parsers; any kind of parsers can now be merged/permuted
 --
 --      * New class @IsParser@ was introduced which captures the basic properties of our parsers
 --
---      * Inclusion of a module "Text.ParserCombinators.UU.Utils" containing common chacacter based parsers
+--      * Inclusion of a module "Text.ParserCombinators.UU.Utils" containing common @Char@ based parsers
 --
---      * Removal of the class Provides, and replaced by separate `pSym`, `pSatisfy` and `pRange`
+--      * Removal of the class @Provides@, and replaced by separate `pSym`, `pSatisfy` and `pRange`; 
+--        this may require some rwriting of  existing parsers. Readbaility is supposed to improve from that. 
+--        Types become simpler. For an example see the module "Text.ParserCombinators.UU.Utils".
 --
---      * Included a Demo directory
+--      * Included a Demo directory, with a modules for demonstrating nromal parsers and one aimed at merging parsers
 --
---      * Many other small changes, mostly upwards compatible
---
+--      * Many other small changes, mostly upwards compatible or invisible (code cleanup)
 --
 -- Version 2.6.1
 --
