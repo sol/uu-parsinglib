@@ -13,8 +13,8 @@ infixl 4  <||>, <<||>
 
 
 -- * The data type `Gram`
--- | Since we want to et access to the individial parsers which recognise a consecutive pice of the input text we
---   define a new data type, which lifts the underlying parsers to the grammatical level, so they can be trsnaformed, manupilated, and run in a piecewise way.
+-- | Since we want to get access to the individial parsers which recognise a consecutive piece of the input text we
+--   define a new data type, which lifts the underlying parsers to the grammatical level, so they can be transformed, manipulated, and run in a piecewise way.
 --   `Gram` is defined in such a way that we can always access the first parsers to be ran from such a structure. 
 --   We require that all the `Alt`s do not recognise the empty string. These should be covered by the `Maybe` in the `Gram` constructor.
 data Gram f a =             Gram  [Alt f a]  (Maybe a) 
