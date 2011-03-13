@@ -1,5 +1,9 @@
 -- | This module just contains the CHANGELOG
 --
+-- Version 2.7.0.1
+--
+--  * Typos fixed in Haddock documentation
+--
 -- Version 2.7.0
 --
 -- Improvement: change of error correction at end of @amb@ combinator, so lookahead is better taken into account
@@ -18,9 +22,9 @@
 --        this may require some rwriting of  existing parsers. Readbaility is supposed to improve from that. 
 --        Types become simpler. For an example see the module "Text.ParserCombinators.UU.Utils".
 --
---      * Included a Demo directory, with a modules for demonstrating nromal parsers and one aimed at merging parsers
+--      * Included a Demo directory, with a modules for demonstrating normal parsers and one aimed at merging parsers
 --
---      * added the module "Text.ParserCombinaors.UU.Idioms", which contains specialised version for the idiomatic notation; it infers the
+--      * Added the module "Text.ParserCombinaors.UU.Idioms", which contains specialised version for the idiomatic notation; it infers the
 --        sequental composition operators from the types of the operands; @String@-s and @Char@-s are not supposed to contribute to the result,
 --        function parameters are lifted using `pure`, and normal parsers are composed with `<*>`.
 --

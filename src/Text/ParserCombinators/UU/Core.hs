@@ -294,9 +294,9 @@ instance  Monad (P st) where
                 unParser_r (P (T  _   _  r ) _ _ _ )  =  r
        return  = pure 
 
--- |  The function `pSymExt` converts a very basic parser, passed to at as the function `splitState`, 
---    the minimal number of tokens recognised by the function and an empty descriptor, and builds a @P@ parser out of this, 
---    i.e. lift the behaviour to a future parser, a history parser and a recogniser.  
+-- |  The basic recognisers are written elsewhere (e.g. in our module "Text.ParserCombinataors.UU.BasicInstances"; 
+--    they (i.e. the parameter `splitState`) are lifted to our`P`  descriptors by the function `pSymExt` which also takes
+--    the minimal number of tokens recognised by the parameter `spliState`  and an  @Maybe@ value describing the possibly empty value.
 pSymExt ::  (forall a. (token -> state  -> Steps a) -> state -> Steps a) -> Nat -> Maybe token -> P state token
 pSymExt splitState l e   = mkParser (Just t)  e l
                  where t = T (        splitState                       )

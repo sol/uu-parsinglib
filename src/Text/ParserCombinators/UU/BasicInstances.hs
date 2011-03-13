@@ -14,8 +14,6 @@
 --   positional information and the actual input that is being parsed.
 --   Unless you have very specific wishes the module can be used as such. 
 --   Since we make use of the "Data.ListLike" interface a wide variety of input structures can be handled.
---
---   The main part of this module is made up from the various instances for the class `Provides`.
 
 module Text.ParserCombinators.UU.BasicInstances(
 -- * Data Types
@@ -135,7 +133,12 @@ instance  StoresErrors (Str a s loc) (Error loc) where
 instance  HasPosition (Str a s loc) loc where
        getPos   (Str  inp      msgs pos ok    )        = pos
 
+-- | the @String@ describes what is being inserted, the @a@ parameter the value which is to be inserted and the @cost@ the prices to be paid.
 data Insertion a = Insertion  String a Cost
+
+-- | `pSatisfy`  describes and elementary parsing step. Its first parameter check whether the head element of the input can be recognised, 
+--    and the second parameter how to proceed in case an element recognised by this parser is absent, 
+--    and parsing may proceed by pretending such an element was present in the input anayway.
 pSatisfy :: forall loc state a .((Show a,  loc `IsLocationUpdatedBy` a, LL.ListLike state a) => (a -> Bool) -> (Insertion a) -> P (Str  a state loc) a)
 pSatisfy p  (Insertion msg  a cost) = pSymExt splitState (Succ (Zero Infinite)) Nothing
   where  splitState :: forall r. ((a ->  (Str  a state loc)  -> Steps r) ->  (Str  a state loc) -> Steps r)
@@ -152,18 +155,27 @@ pSatisfy p  (Insertion msg  a cost) = pSymExt splitState (Succ (Zero Infinite)) 
                               (Step 1 (k t (Str ts msgs (advance pos t) True)))
                         else  Fail [msg] (ins: if del_ok then [del] else [])
             )
+-- | `pRangeInsert` recognises an element between a lower and an upper bound. Furthermore it can be specified what element 
+--   is to be inserted in case such an element is not at the head of the input.
 pRangeInsert :: (Ord a, Show a, IsLocationUpdatedBy loc a, LL.ListLike state a) => (a, a) -> Insertion a -> P (Str a state loc) a
 pRangeInsert (low, high)  = pSatisfy (\ t -> low <= t && t <= high)  
 
+-- | `pRange` uses the information from the bounds to compute the `Insertion` information.
+pRange ::  (Ord a, Show a, IsLocationUpdatedBy loc a, LL.ListLike state a) => (a, a) -> P (Str a state loc) a
 pRange lh@(low, high) = pRangeInsert lh (Insertion (show low ++ ".." ++ show high) low 5)
 
 
+-- | `pSymInsert` recognises a specific element. Furthermore it can be specified what element 
+--   is to be inserted in case such an element is not at the head of the input.
 pSymInsert  :: (Eq a,Show a, IsLocationUpdatedBy loc a, LL.ListLike state a) => a -> Insertion a -> P (Str a state loc) a
 pSymInsert  t  = pSatisfy (==t) 
 
+-- | `pSym` recognises a specific element. Furthermore it can be specified what element. Information about `Insertion` is derived from the parameter.
+--   is to be inserted in case such an element is not at the head of the input.
 pSym ::   (Eq a,Show a, IsLocationUpdatedBy loc a, LL.ListLike state a) => a ->  P (Str a state loc) a    
 pSym  t = pSymInsert t (Insertion (show t) t 5)
 
+-- | `pMunchL` recognises the longest prefix of the input for which the passed predicate holds. The message parameer is used when tracing has been switched on. 
 pMunchL :: forall loc state a .((Show a,  loc `IsLocationUpdatedBy` a, LL.ListLike state a) => (a -> Bool) -> String -> P (Str  a state loc) [a])
 pMunchL p msg = pSymExt splitState (Succ (Zero Infinite)) Nothing
   where  splitState :: forall r. (([a] ->  (Str  a state loc)  -> Steps r) ->  (Str  a state loc) -> Steps r)
@@ -177,8 +189,11 @@ pMunchL p msg = pSymExt splitState (Succ (Zero Infinite)) Nothing
                            else show_munch ("Accepting munch: " ++ msg ++ " as emtty munch " ++ show pos ++ "\n") (k [] inp)
                )
 
+-- | `pMunch` recognises the longest prefix of the input for which the passed predicate holds. The message parameer is used when tracing has been switched on. 
+pMunch :: forall loc state a .((Show a,  loc `IsLocationUpdatedBy` a, LL.ListLike state a) => (a -> Bool)  -> P (Str  a state loc) [a])
 pMunch  p   = pMunchL p ""
 
+-- | `pTokenCost` succeeds iis parameter is a prefix of the input. 
 pTokenCost :: forall loc state a .((Show a, Eq a,  loc `IsLocationUpdatedBy` a, LL.ListLike state a) => [a] -> Int -> P (Str  a state loc) [a])
 pTokenCost as cost = 
   if null as then error "Module: BasicInstances, function: pTokenCost; call  with empty token"
@@ -206,6 +221,7 @@ pTokenCost as cost =
                                      in  Fail [msg] (ins: if del_ok then [del] else [])
                       
                      )
+pToken ::  forall loc state a .((Show a, Eq a,  loc `IsLocationUpdatedBy` a, LL.ListLike state a) => [a] -> P (Str  a state loc) [a])
 pToken     as   =   pTokenCost as 5
 
 {-# INLINE show_tokens #-}
