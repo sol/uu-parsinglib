@@ -61,9 +61,9 @@ instance  MonadPlus (P st) where
 
 class (Alternative p) => ExtAlternative p where
    -- | `<<|>` is the greedy version of `<|>`. If its left hand side parser can
-   --   make any progress that alternative is committed. Can be used to make
+   --   make any progress then it commits to that alternative. Can be used to make
    --   parsers faster, and even get a complete Parsec equivalent behaviour, with
-   --   all its (dis)advantages. Intended use @p \<\<\|> q \<\<\|> r \<\|> x \<\|> y \<?> "string"@. Use with care!   
+   --   all its (dis)advantages. Intended use @p \<\<\|> q \<\<\|> r \<\|> x \<\|> y \<?> \"string\"@. Use with care!   
    (<<|>)  :: p a -> p a -> p a
    -- | The parsers build a list of symbols which are expected at a specific point. 
    --   This list is used to report errors.
@@ -71,7 +71,7 @@ class (Alternative p) => ExtAlternative p where
    --   The `<?>` combinator replaces this list of symbols by the string argument.   
    (<?>)   :: p a -> String -> p a
    -- | `doNotInterpret` makes a parser opaque for abstract interpretation; used when permuting parsers
-   --    where we do not want to compare lengths
+   --    where we do not want to compare lengths.
    doNotInterpret :: p a -> p a
    doNotInterpret = id
    -- |  `must_be_non_empty` checks whether its second argument
@@ -121,9 +121,11 @@ class Eof state where
 --   called in the `splitState` functions.
 
 class Show loc => loc `IsLocationUpdatedBy` str where
-    advance::loc -> str -> loc
+    advance :: loc -- ^ The current position
+            -> str -- ^ The part which has been removed from the input
+            -> loc
 
--- | The class `StoresErrors` is used by the function `pErrors` which retreives the generated 
+-- | The class `StoresErrors` is used by the function `pErrors` which retrieves the generated 
 --  correction steps since the last time it was called.
 --
 
@@ -134,8 +136,8 @@ class state `StoresErrors`  error | state -> error where
 
 
 class state `HasPosition`  pos | state -> pos where
-  -- | `getPos` retreives the correcting steps made since the last time the function was called. The result can, 
-  --   by usingit as the left hand sie of a mondaic bind, be used to control how to proceed with the parsing process.
+  -- | `getPos` retrieves the correcting steps made since the last time the function was called. The result can, 
+  --   by using it as the left hand side of a monadic bind, be used to control how to proceed with the parsing process.
   getPos  ::  state -> pos
 
 -- | The data type `T` contains three components, all being some form of primitive parser. 
@@ -180,13 +182,13 @@ data  P   st  a =  P  (T  st a)         --   actual parsers
 instance Show (P st a) where
   show (P _ nt n e) = "P _ " ++ maybe "Nothing" (const "(Just _)") nt ++ " (" ++ show n ++ ") " ++ maybe "Nothing" (const "(Just _)") e
 
--- | `getOneP` retreives the non-zero part from a descriptor
+-- | `getOneP` retrieves the non-zero part from a descriptor.
 getOneP :: P a b -> Maybe (P a b)
 -- getOneP (P _ (Just _)  (Zero Unspecified) _  )  =  error "The element is a special parser which cannot be combined"
 getOneP (P _ Nothing   l                  _  )  =  Nothing
 getOneP (P _ onep      l                  ep )  =  Just( mkParser onep Nothing (getLength l))
 
--- | `getZeroP` retreives the possibly empty part from a descriptor
+-- | `getZeroP` retrieves the possibly empty part from a descriptor.
 getZeroP :: P t a -> Maybe a
 getZeroP (P _ _ _ z)  =  z
 
@@ -293,8 +295,8 @@ instance  Monad (P st) where
        return  = pure 
 
 -- |  The function `pSymExt` converts a very basic parser, passed to at as the function `splitState`, 
---    the minmal number of tokens recognised by the function and and empty descriptor, and builds a @P@ parser out of this, 
---    i.e. lift the behaviour to a fture pareser, a histroy parser and a recogniser.  
+--    the minimal number of tokens recognised by the function and an empty descriptor, and builds a @P@ parser out of this, 
+--    i.e. lift the behaviour to a future parser, a history parser and a recogniser.  
 pSymExt ::  (forall a. (token -> state  -> Steps a) -> state -> Steps a) -> Nat -> Maybe token -> P state token
 pSymExt splitState l e   = mkParser (Just t)  e l
                  where t = T (        splitState                       )
@@ -326,7 +328,7 @@ amb (P _  np  pl pe)
         nep = (fmap pure pe)
     in  mkParser nnp nep pl
 
--- | `pErrors` returns the error messages that were generated since its last call
+-- | `pErrors` returns the error messages that were generated since its last call.
 pErrors :: StoresErrors st error => P st [error]
 pErrors = let nnp = Just (T ( \ k inp -> let (errs, inp') = getErrors inp in k    errs    inp' )
                             ( \ k inp -> let (errs, inp') = getErrors inp in push errs (k inp'))
@@ -334,7 +336,7 @@ pErrors = let nnp = Just (T ( \ k inp -> let (errs, inp') = getErrors inp in k  
               nep =  (Just (error "pErrors cannot occur in lhs of bind"))  -- the errors consumed cannot be determined statically!
           in mkParser nnp  Nothing (Zero Infinite)
 
--- | `pPos` returns the current input position
+-- | `pPos` returns the current input position.
 pPos :: HasPosition st pos => P st pos
 pPos =  let nnp = Just ( T ( \ k inp -> let pos = getPos inp in k    pos    inp )
                            ( \ k inp -> let pos = getPos inp in push pos (k inp))
@@ -349,7 +351,7 @@ pState =   let nnp = Just ( T ( \ k inp -> k inp inp)
                           ($))
            in mkParser nnp Nothing  (Zero Infinite) 
 
--- | The function `pEnd` should be called at the end of the parsing process. It deletes any unconsumed input, turning them into error messages
+-- | The function `pEnd` should be called at the end of the parsing process. It deletes any unconsumed input, turning it into error messages.
 
 pEnd    :: (StoresErrors st error, Eof st) => P st [error]
 pEnd    = let nnp = Just ( T ( \ k inp ->   let deleterest inp =  case deleteAtEnd inp of
@@ -370,10 +372,10 @@ pEnd    = let nnp = Just ( T ( \ k inp ->   let deleterest inp =  case deleteAtE
          in mkParser nnp  Nothing (Zero Infinite)
            
 -- | @`pSwitch`@ takes the current state and modifies it to a different type of state to which its argument parser is applied. 
---   The second component of the result is a function which  converts the remaining state of this parser back into a valuee of the original type.
---   For the second argumnet to @`pSwitch`@  (say split) we expect the following to hold:
+--   The second component of the result is a function which  converts the remaining state of this parser back into a value of the original type.
+--   For the second argument to @`pSwitch`@  (say split) we expect the following to hold:
 --   
--- >  let (n,f) = split st in f n to be equal to st
+-- >  let (n,f) = split st in f n == st
 
 pSwitch :: (st1 -> (st2, st2 -> st1)) -> P st2 a -> P st1 a -- we require let (n,f) = split st in f n to be equal to st
 pSwitch split (P _ np pl pe)    
@@ -400,22 +402,23 @@ parse_h (P (T ph _  _) _ _ _)  = fst . eval . ph  (\ a rest -> if eof rest then 
                                                                            else error "pEnd missing?") 
 
 -- | The data type `Steps` is the core data type around which the parsers are constructed.
---   It is a describes a tree structure of streams containing (in an interleaved way) both the online result of the parsing process,
+--   It describes a tree structure of streams containing (in an interleaved way) both the online result of the parsing process,
 --   and progress information. Recognising an input token should correspond to a certain amount of @`Progress`@, 
 --   which tells how much of the input state was consumed. 
 --   The @`Progress`@ is used to implement the breadth-first search process, in which alternatives are
---   examined in a more-or-less synchonised way. The meaning of the various @`Step`@ constructors is as follows:
+--   examined in a more-or-less synchronised way. The meaning of the various @`Step`@ constructors is as follows:
 --
 --   [`Step`] A token was succesfully recognised, and as a result the input was 'advanced' by the distance  @`Progress`@
 --
 --   [`Apply`] The type of value represented by the `Steps` changes by applying the function parameter.
 --
---   [`Fail`] A correcting step has to made to the input; the first parameter contains information about what was expected in the input, 
+--   [`Fail`] A correcting step has to be made to the input; the first parameter contains information about what was expected in the input, 
 --   and the second parameter describes the various corrected alternatives, each with an associated `Cost`
 --
 --   [`Micro`] A small cost is inserted in the sequence, which is used to disambiguate. Use with care!
 --
---   The last two alternatives play a role in recognising ambigous non-terminals. For a full description see the technical report referred to from the README file..
+--   The last two alternatives play a role in recognising ambigous non-terminals. For a full description see the technical report referred to from 
+--   "Text.ParserCombinators.UU.README".
 
 
 
@@ -453,9 +456,9 @@ has_success :: Steps t -> Bool
 has_success (Step _ _) = True
 has_success _        = False 
 
--- ! @`eval`@ removes the progress information from a sequence of steps, and constructs the value embedded in it.
+-- | @`eval`@ removes the progress information from a sequence of steps, and constructs the value embedded in it.
 --   If you are really desparate to see how your parsers are making progress (e.g. when you have written an ambiguous parser, and you cannot find the cause of
---   the exponential blow-up of your parsing process, you may switch on the trace in the function @`eval`@
+--   the exponential blow-up of your parsing process), you may switch on the trace in the function @`eval`@ (you will need to edit the library source code).
 -- 
 eval :: Steps   a      ->  a
 eval (Step  n    l)     =   {- trace ("Step " ++ show n ++ "\n")-} (eval l)

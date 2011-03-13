@@ -6,7 +6,7 @@
               CPP  #-}
 
 -- | This module contains a lot of examples of the typical use of our parser combinator library. 
---   We strongly encourage you to take a look at the source code
+--   We strongly encourage you to take a look at the source code.
 --   At the end you find a @`main`@ function which demonstrates the main characteristics. 
 --   Only the @`run`@ function is exported since it may come in handy elsewhere.
 
@@ -120,7 +120,7 @@ run p inp = do  let r@(a, errors) =  parse ( (,) <$> p <*> pEnd) (createStr (Lin
                    show_errors = sequence_ . (map (putStrLn . show))
 
 -- | Our first two parsers are simple; one recognises a single 'a' character and the other one a single 'b'. Since we will use them later we 
---   convert the recognsised character into `String` so they can be easily combined.
+--   convert the recognised character into `String` so they can be easily combined.
 pa  ::Parser String 
 pa  = lift <$> pSym 'a'
 pb  :: Parser String 

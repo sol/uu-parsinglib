@@ -1,8 +1,8 @@
 {-# LANGUAGE ExistentialQuantification #-}
 
 -- | This module contains the additional data types, instance definitions and functions to run parsers in an interleaved way.
---   If all the interlevaed parsers recognise a single connected piece of the input text this incorporates the permutation parsers.
---   For some examples see the module "Text.ParserCombinators.UU.Demo.MergeAndpermute"
+--   If all the interleaved parsers recognise a single connected piece of the input text this incorporates the permutation parsers.
+--   For some examples see the module "Text.ParserCombinators.UU.Demo.MergeAndPermute".
 
 module Text.ParserCombinators.UU.MergeAndPermute where
 import Text.ParserCombinators.UU.Core
@@ -13,7 +13,7 @@ infixl 4  <||>, <<||>
 
 
 -- * The data type `Gram`
--- | Since we want to get access to the individial parsers which recognise a consecutive piece of the input text we
+-- | Since we want to get access to the individual parsers which recognise a consecutive piece of the input text we
 --   define a new data type, which lifts the underlying parsers to the grammatical level, so they can be transformed, manipulated, and run in a piecewise way.
 --   `Gram` is defined in such a way that we can always access the first parsers to be ran from such a structure.
 --   We require that all the `Alt`s do not recognise the empty string. These should be covered by the `Maybe` in the `Gram` constructor.
@@ -26,7 +26,7 @@ instance (Show a) => Show (Gram f a) where
 
 -- | The function `mkGram` splits a simple parser into the possibly empty part and the non-empty part.
 --   The non-empty part recognises a consecutive part of the input.
---   Here we use the function `getOneP` and `getZeroP` which are provided in the uu-parsinglib package,
+--   Here we use the functions `getOneP` and `getZeroP` which are provided in the uu-parsinglib package,
 --   but they could easily be provided by other packages too.
 
 mkGram :: P t a -> Gram (P t) a
@@ -92,20 +92,21 @@ pg@(Gram pl pe) <||> qg@(Gram ql qe)
           )   (pe <*> qe)                                         
 
 -- |  The function `<<||>` is a special version of `<||>`, whch only starts a new instance of its right operand when the left operand cannot proceed.
---   This is used in the function pmMany, where we want to merge as many instances of its argument, but not more than that.
+--   This is used in the function 'pmMany', where we want to merge as many instances of its argument, but not more than that.
+(<<||>):: Functor f => Gram f (b->a) -> Gram f b -> Gram f a
 pg@(Gram pl pe) <<||> ~qg@(Gram ql qe)
    = Gram (   [ p `Seq` (flip  <$> pp <||> qg)| p `Seq` pp <- pl]
           )   (pe <*> qe)
 
 
--- | `mkPaserM` converts a `Gram`mar beack into a parser, which can subsequenly be run.
+-- | 'mkParserM' converts a `Gram`mar back into a parser, which can subsequenly be run.
 mkParserM :: (Monad f, Applicative f, ExtAlternative f) => Gram f a -> f a
 mkParserM (Gram ls le) = foldr (\ p pp -> doNotInterpret p <|> pp) (maybe empty pure le) (map mkParserAlt ls)
    where mkParserAlt (p `Seq` pp) = p <**> mkParserM pp
          mkParserAlt (fc `Bind` c2fa) = fc >>=  (mkParserM . c2fa)
  
 
--- | `mkParserS` is like `mkParserM`, with the additional feature that we allow seprators between the components. Only useful in the permuting case.
+-- | `mkParserS` is like `mkParserM`, with the additional feature that we allow separators between the components. Only useful in the permuting case.
 mkParserS :: (Monad f, Applicative f, ExtAlternative f) => f b -> Gram f a -> f a
 mkParserS sep (Gram ls le) = foldr  (\ p pp -> doNotInterpret p <|> pp) (maybe empty pure le) (map mkParserAlt ls)
    where mkParserAlt (p `Seq` pp) = p <**> mkParserP sep pp

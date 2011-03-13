@@ -16,10 +16,10 @@ import qualified Data.ListLike as LL
 import Control.Applicative 
 
 
--- | The  `Ii` is to be pronouunced as @stop@
+-- | The  `Ii` is to be pronounced as @stop@
 data Ii = Ii 
 
--- | The function `iI` is to be pronouunced as @start@
+-- | The function `iI` is to be pronounced as @start@
 iI :: Idiomatic  (Str Char state loc) (a -> a) g => g
 iI = idiomatic (pure id)
 

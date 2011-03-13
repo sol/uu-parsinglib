@@ -9,13 +9,13 @@
               TypeSynonymInstances,
               ScopedTypeVariables #-}
 
--- | This module caontains basic instances for the class interface described in the "Text.ParserCombinators.UU.Core" module.
---   It demonstates how to use construct and maintain a state during parsing. In the state we store error messages, 
+-- | This module contains basic instances for the class interface described in the "Text.ParserCombinators.UU.Core" module.
+--   It demonstates how to construct and maintain a state during parsing. In the state we store error messages, 
 --   positional information and the actual input that is being parsed.
 --   Unless you have very specific wishes the module can be used as such. 
 --   Since we make use of the "Data.ListLike" interface a wide variety of input structures can be handled.
 --
---   The main part of this module is made up from the various instances for the class `Provides`
+--   The main part of this module is made up from the various instances for the class `Provides`.
 
 module Text.ParserCombinators.UU.BasicInstances(
 -- * Data Types
@@ -74,7 +74,7 @@ show_expecting pos []     = " expecting nothing"
 
 -- * The Stream data type
 -- | The data type `Str` holds the input data to be parsed, the current location, the error messages generated 
---   and whether it is ok to delet elements from the input. Since an insert/delete action is 
+--   and whether it is ok to delete elements from the input. Since an insert/delete action is 
 --   the same as a delete/insert action we try to avoid the first one. 
 --   So: no deletes after an insert.
 
@@ -88,7 +88,7 @@ data Str a s loc = Str { -- | the unconsumed part of the input
                          deleteOk :: !Bool         
                        }
 
--- | A`Parser` is a parser that is prepared to accept "Data.Listlike" input; hence we can deal with @String@'s, @ByteString@'s, etc.
+-- | A `Parser` is a parser that is prepared to accept "Data.Listlike" input; hence we can deal with @String@'s, @ByteString@'s, etc.
 type Parser      a    = (IsLocationUpdatedBy loc Char, LL.ListLike state Char) => P (Str Char state loc) a
 
 -- | A @`ParserTrafo` a b@ maps a @`Parser` a@ onto a @`Parser` b@.
@@ -99,7 +99,7 @@ createStr :: LL.ListLike s a => loc -> s -> Str a s loc
 createStr beginpos ls = Str ls [] beginpos True
 
 
--- | The first parameter is the current position, and the second parameter the part which has been removed from the input.
+-- The first parameter is the current position, and the second parameter the part which has been removed from the input.
 instance IsLocationUpdatedBy Int Char where
    advance pos _ = pos + 1
    

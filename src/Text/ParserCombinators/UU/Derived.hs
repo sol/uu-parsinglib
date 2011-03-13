@@ -7,23 +7,23 @@
               UndecidableInstances,
               NoMonomorphismRestriction #-}
 
+-- | This module contains a large variety of combinators for list-like structures. the extension @_ng@ indicates that 
+--   that variant is the non-greedy variant.
+--   See the "Text.ParserCombinators.UU.Demo.Examples" module for some examples of their use.
+
 module Text.ParserCombinators.UU.Derived where
 import Text.ParserCombinators.UU.Core
 
 import Control.Applicative
 
--- | This module contains a large variety of combinators for list-lile structures. the extension @_ng@ indiactes that 
---   that variant is the non-greedy variant.
---   See the "Text.ParserCombinators.UU.Demo.Examples" module for some examples of their use.
-
 -- * Some aliases for oft occurring constructs
 
--- | @`pReturn`@ is defined for upwards comptaibility
+-- | @`pReturn`@ is defined for upwards compatibility
 --
 pReturn :: Applicative p => a -> p  a
 pReturn  = pure
 
--- | @`pFail`@ is defined for upwards comptaibility, and is the unit for @<|>@
+-- | @`pFail`@ is defined for upwards compatibility, and is the unit for @<|>@
 --
 pFail :: Alternative  p => p  a
 pFail    = empty
@@ -38,7 +38,7 @@ pMaybe p = must_be_non_empty "pMaybe" p (Just <$> p `opt` Nothing)
 pEither :: IsParser p => p a -> p b -> p (Either a b)
 pEither p q = Left <$> p <|> Right <$> q
                                                 
--- | `<$$>` is the version of `<$>` whichflips the function argument 
+-- | `<$$>` is the version of `<$>` which flips the function argument 
 --
 (<$$>)    ::  IsParser p => (a -> b -> c) -> p b -> p (a -> c)
 f <$$> p  =  flip f <$> p
@@ -144,7 +144,7 @@ pChainl_ng op x    = must_be_non_empties "pChainl_ng" op   x (f <$> x <*> pList_
 
 -- * Repeating parsers
 
--- | `pExact` recocgnises a specified number of elements
+-- | `pExact` recognises a specified number of elements
 pExact :: (IsParser f) => Int -> f a -> f [a]
 pExact n p | n == 0 = pure []
            | n >  0 = (:) <$> p <*> pExact (n-1) p
