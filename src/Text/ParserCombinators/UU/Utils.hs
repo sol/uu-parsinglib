@@ -119,7 +119,7 @@ pDigitAsNum =
   where
   digit2Int a = fromInteger $ toInteger $ ord a - ord '0'
 
-pAnySym ::  String -> Parser Char
+pAnySym ::  (IsLocationUpdatedBy loc Char, LL.ListLike state Char) => String -> P (Str Char state loc) Char
 pAnySym = pAny pSym
 
 -- * Dealing with Whitespace
@@ -141,7 +141,7 @@ pRBracket = lexeme $ pSym ']'
 pLBrace   = lexeme $ pSym '{'
 pRBrace   = lexeme $ pSym '}'
 
-pSymbol :: String -> Parser String
+pSymbol :: (IsLocationUpdatedBy loc Char, LL.ListLike state Char) => String -> P (Str Char state loc)  String
 pSymbol   = lexeme . pToken
 
 -- * Parsers for Numbers
