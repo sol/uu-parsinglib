@@ -246,7 +246,7 @@ pManyTill p end = [] <$ end
 simpleComment   =  string "<!--"  *>  pManyTill pAscii  (string "-->")
 
 
-string :: String -> Parser String
+--string :: String -> Parser String
 string = pToken
 
 
@@ -254,7 +254,7 @@ pVarId  = (:) <$> pLower <*> pList pIdChar
 pConId  = (:) <$> pUpper <*> pList pIdChar
 pIdChar = pLower <|> pUpper <|> pDigit <|> pAnySym "='"
 
-pAnyToken :: [String] -> Parser String
+--pAnyToken :: [String] -> Parser String
 pAnyToken = pAny pToken
 
 -- parsing two alternatives and returning both rsults
