@@ -41,7 +41,10 @@ module Text.ParserCombinators.UU.Core
     getZeroP,
     getOneP,
     -- ** Evaluating the online result
-    eval
+    eval,
+    -- ** Re-exported modules
+    module Control.Applicative,
+    module Control.Monad
   ) where
 
 import Control.Applicative

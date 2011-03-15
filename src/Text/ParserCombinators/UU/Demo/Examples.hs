@@ -12,11 +12,12 @@
 
 module Text.ParserCombinators.UU.Demo.Examples  where
 import Data.Char
-import Text.ParserCombinators.UU 
+import Text.ParserCombinators.UU
 import Text.ParserCombinators.UU.Utils
 import Text.ParserCombinators.UU.BasicInstances
 import System.IO
 import GHC.IO.Handle.Types
+import qualified Data.ListLike as LL
 
 -- import Control.Monad
 
@@ -246,7 +247,7 @@ pManyTill p end = [] <$ end
 simpleComment   =  string "<!--"  *>  pManyTill pAscii  (string "-->")
 
 
---string :: String -> Parser String
+string ::(IsLocationUpdatedBy loc Char, LL.ListLike state Char) => String -> P (Str Char state loc)  String
 string = pToken
 
 
@@ -254,7 +255,7 @@ pVarId  = (:) <$> pLower <*> pList pIdChar
 pConId  = (:) <$> pUpper <*> pList pIdChar
 pIdChar = pLower <|> pUpper <|> pDigit <|> pAnySym "='"
 
---pAnyToken :: [String] -> Parser String
+pAnyToken :: (IsLocationUpdatedBy loc Char, LL.ListLike state Char) => [String] -> P (Str Char state loc)  String 
 pAnyToken = pAny pToken
 
 -- parsing two alternatives and returning both rsults

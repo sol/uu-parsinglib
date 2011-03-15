@@ -6,7 +6,6 @@
 
 module Text.ParserCombinators.UU.MergeAndPermute where
 import Text.ParserCombinators.UU.Core
-import Control.Applicative
 
 infixl 4  <||>, <<||> 
 

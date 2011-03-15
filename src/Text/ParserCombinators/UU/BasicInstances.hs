@@ -37,7 +37,7 @@ module Text.ParserCombinators.UU.BasicInstances(
    pSym,
    pToken,
    pTokenCost,
-   pMunch
+   pMunch,
 ) where
 import Text.ParserCombinators.UU.Core
 import Data.Maybe

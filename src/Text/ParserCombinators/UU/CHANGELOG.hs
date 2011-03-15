@@ -1,5 +1,9 @@
 -- | This module just contains the CHANGELOG
 --
+-- Version 2.7.0.2
+--
+--  * Some types were reformulated to compile correctly with ghc 6.12.3
+--
 -- Version 2.7.0.1
 --
 --  * Typos fixed in Haddock documentation

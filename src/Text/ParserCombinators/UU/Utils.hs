@@ -81,9 +81,8 @@ import Data.Char
 import Data.List
 import Data.Time
 import Text.ParserCombinators.UU.Core
-import Text.ParserCombinators.UU.BasicInstances 
-import Text.ParserCombinators.UU.Derived
-import Control.Applicative
+import Text.ParserCombinators.UU.BasicInstances
+import Text.ParserCombinators.UU.Derived 
 import Text.Printf
 import qualified Data.ListLike  as LL
 

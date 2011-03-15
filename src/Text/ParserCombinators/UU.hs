@@ -20,14 +20,10 @@
 module Text.ParserCombinators.UU ( module Text.ParserCombinators.UU.Core
                                  , module Text.ParserCombinators.UU.Derived
                                  , module Text.ParserCombinators.UU.MergeAndPermute
-                                 , module Control.Applicative
-                                 , module Control.Monad
                                  ) where
 import Text.ParserCombinators.UU.Core
 import Text.ParserCombinators.UU.Derived
 import Text.ParserCombinators.UU.MergeAndPermute
-import Control.Applicative
-import Control.Monad
 
 
 

@@ -14,8 +14,6 @@
 module Text.ParserCombinators.UU.Derived where
 import Text.ParserCombinators.UU.Core
 
-import Control.Applicative
-
 -- * Some aliases for oft occurring constructs
 
 -- | @`pReturn`@ is defined for upwards compatibility
