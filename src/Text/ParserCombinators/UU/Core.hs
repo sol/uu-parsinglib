@@ -197,10 +197,10 @@ getZeroP (P _ _ _ z)  =  z
 
 -- | `mkParser` combines the non-empty descriptor part and the empty descriptor part into a descriptor tupled with the parser triple
 mkParser :: Maybe (T st a) -> Maybe a -> Nat -> P st a
-mkParser np@Nothing   ne@Nothing  l  =  P empty           np l ne           
-mkParser np@(Just nt) ne@Nothing  l  =  P nt              np l ne          
-mkParser np@Nothing   ne@(Just a) l  =  P (pure a)        np l ne       
-mkParser np@(Just nt) ne@(Just a) l  =  P (nt <|> pure a) np l ne
+mkParser np ne  l  =  P (mkParser'  np ne)  np l ne
+  where  mkParser' np@(Just nt)  ne@Nothing   =  nt               
+         mkParser' np@Nothing    ne@(Just a)  =  pure a       
+         mkParser' np@(Just nt)  ne@(Just a)  =  nt <|> pure a
 
 -- ! `combine` creates the non-empty parser 
 combine :: (Alternative f) => Maybe t1 -> Maybe t2 -> t -> Maybe t3
@@ -310,11 +310,9 @@ pSymExt splitState l e   = mkParser (Just t)  e l
 --   for its use see `"Text.ParserCombinators.UU.Demos.Examples"`
 micro :: P state a -> Int -> P state a
 P _  np  pl pe `micro` i  
-  = let nnp = case np of
-              Nothing -> Nothing
-              Just ((T ph pf  pr)) -> Just(T ( \ k st -> ph (\ a st -> Micro i (k a st)) st)
-                                             ( \ k st -> pf (Micro i .k) st)
-                                             ( \ k st -> pr (Micro i .k) st))
+  = let nnp = fmap (\ (T ph pf  pr) -> (T ( \ k st -> ph (\ a st -> Micro i (k a st)) st)
+                                          ( \ k st -> pf (Micro i .k) st)
+                                          ( \ k st -> pr (Micro i .k) st))) np
     in mkParser nnp pe pl
 
 -- |  For the precise functioning of the `amb` combinators see the paper cited in the "Text.ParserCombinators.UU.README";
@@ -579,12 +577,12 @@ getLength (Zero  l)    = l
 getLength l            = l
 
 -- | `nat_min` compares two minmal length and returns the shorter length. The second component indicates whether the left
---   operand is the smaller one; we cannot use @Either@ since the fisrt component may already be inspected 
+--   operand is the smaller one; we cannot use @Either@ since the first component may already be inspected 
 --   before we know which operand is finally chosen
 nat_min :: Nat -> Nat -> Int -> ( Nat  --  the actual minimum length
                                 , Bool --  whether aternatives should be swapped
                                 ) 
-nat_min (Zero l)   (Zero r)      n   = (Zero (fst(nat_min l r (n+1))), False) 
+nat_min (Zero l)   (Zero r)      n  = trace' "Both Zero in nat_min\n" (Zero (trace' "Should not be called unless merging?" (fst(nat_min l r (n+1)))), False) 
 nat_min l          rr@(Zero r)   n  = trace' "Right Zero in nat_min\n"  (let (m,_) = nat_min l r (n+1)
                                                                          in (Zero m, True))
 nat_min ll@(Zero l)   r          n  = trace' "Left Zero in nat_min\n"   (let (m,_) = nat_min l r (n+1)
@@ -594,11 +592,11 @@ nat_min (Succ ll)  (Succ rr)     n  = if n > 1000 then error "problem with compa
                                                   (let (v, b) = nat_min ll  rr (n+1) in (Succ v, b))
 nat_min Infinite   r             _  = trace' "Left Infinite in nat_min\n"  (r, True) 
 nat_min l          Infinite      _  = trace' "Right Infinite in nat_min\n" (l, False) 
-nat_min  Unspecified r           _  = (r, False) -- leave the alternatives in the order they are 
-nat_min  l           Unspecified _  = (l, False) -- leave the alternatives in the order they are
+nat_min  Unspecified r           _  = trace' "Left Unspecified in nat_min\n"(r, False) -- leave the alternatives in the order they are 
+nat_min  l           Unspecified _  = trace' "Right Unspecified in nat_min\n"(l, False) -- leave the alternatives in the order they are
 
 nat_add :: Nat -> Nat -> Nat
-nat_add Unspecified _ = Unspecified
+nat_add Unspecified _ = trace' "Unspecified in add\n" Unspecified
 nat_add Infinite    _ = trace' "Infinite in add\n" Infinite
 nat_add (Zero _)    r = trace' "Zero in add\n"     r
 nat_add (Succ l)    r = trace' "Succ in add\n"     (Succ (nat_add l r))

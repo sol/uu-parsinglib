@@ -177,7 +177,7 @@ pSym  t = pSymInsert t (Insertion (show t) t 5)
 
 -- | `pMunchL` recognises the longest prefix of the input for which the passed predicate holds. The message parameer is used when tracing has been switched on. 
 pMunchL :: forall loc state a .((Show a,  loc `IsLocationUpdatedBy` a, LL.ListLike state a) => (a -> Bool) -> String -> P (Str  a state loc) [a])
-pMunchL p msg = pSymExt splitState (Succ (Zero Infinite)) Nothing
+pMunchL p msg = pSymExt splitState (Zero Infinite) Nothing
   where  splitState :: forall r. (([a] ->  (Str  a state loc)  -> Steps r) ->  (Str  a state loc) -> Steps r)
          splitState k inp@(Str tts msgs pos del_ok)
           =    show_attempt ("Try Munch: " ++ msg ++ "\n") (
@@ -235,7 +235,7 @@ show_munch  m v =   {- trace m -}  v
 
 {-# INLINE show_symbol #-}
 show_symbol :: String -> b -> b
-show_symbol m v =  {-  trace m -}  v
+show_symbol m v = {-  trace m -}  v
 
 {-# INLINE show_attempt #-}
 show_attempt m v = {- trace m -} v

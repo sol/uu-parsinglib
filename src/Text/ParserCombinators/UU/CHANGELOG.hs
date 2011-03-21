@@ -1,5 +1,9 @@
 -- | This module just contains the CHANGELOG
 --
+-- Version 2.7.1
+--
+-- fixed a subtle black hole which prevented computation of lengths!! You should upgrade.
+--
 -- Version 2.7.0.2
 --
 --  * Some types were reformulated to compile correctly with ghc 6.12.3
