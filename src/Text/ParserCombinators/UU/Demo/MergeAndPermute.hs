@@ -8,12 +8,12 @@ module Text.ParserCombinators.UU.Demo.MergeAndPermute where
 
 import Text.ParserCombinators.UU
 import Text.ParserCombinators.UU.MergeAndPermute
-import Text.ParserCombinators.UU.BasicInstances
+import Text.ParserCombinators.UU.BasicInstances hiding (Parser)
 import Text.ParserCombinators.UU.Utils
 import Text.ParserCombinators.UU.Demo.Examples hiding (show_demos)
 import qualified Data.ListLike as LL 
 
-type Grammar a = (IsLocationUpdatedBy loc Char, LL.ListLike state Char) => Gram (P (Str Char state loc)) a
+type Grammar a =  Gram (P (Str Char String  LineColPos)) a
 
 -- | By running the function `show_demos` you will get a demonstration of the merging parsers.
 --

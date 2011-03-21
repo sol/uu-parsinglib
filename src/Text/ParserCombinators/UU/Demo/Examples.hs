@@ -14,7 +14,7 @@ module Text.ParserCombinators.UU.Demo.Examples  where
 import Data.Char
 import Text.ParserCombinators.UU
 import Text.ParserCombinators.UU.Utils
-import Text.ParserCombinators.UU.BasicInstances
+import Text.ParserCombinators.UU.BasicInstances hiding (Parser)
 import System.IO
 import GHC.IO.Handle.Types
 import qualified Data.ListLike as LL
@@ -22,6 +22,8 @@ import qualified Data.ListLike as LL
 -- import Control.Monad
 
 #define DEMO(p,i) demo "p" i p
+
+type Parser a = P (Str Char String LineColPos) a
 
 justamessage = "justamessage"
 
@@ -267,6 +269,6 @@ parseIntString =  pParens ((pSym ';') `pListSep` (         pList1 (pRange('0', '
 
 
 
-demo :: Show r => String -> String -> Parser r -> IO ()
+demo :: Show r => String -> String -> P (Str Char String LineColPos) r -> IO ()
 demo str  input p= do putStr ("-- >>>   run " ++ str ++ "  " ++ show input ++ "\n")
                       run p input
