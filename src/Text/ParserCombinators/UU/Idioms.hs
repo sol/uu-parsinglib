@@ -47,7 +47,7 @@ instance (Idiomatic  (Str Char state loc) f g, IsLocationUpdatedBy loc Char, LL.
     idiomatic isf str = idiomatic (isf <* lexeme (pToken str))
 instance  (Idiomatic (Str Char state loc) f g, IsLocationUpdatedBy loc Char, LL.ListLike state Char) 
       =>   Idiomatic (Str Char state loc) f (Char -> g) where
-    idiomatic isf c = idiomatic (isf <* pSym c)
+    idiomatic isf c = idiomatic (isf <* lexeme (pSym c))
 instance Idiomatic st f g =>    Idiomatic st (a -> f) (IF -> Bool -> THEN -> P st a -> ELSE -> P st a -> FI -> g) where
     idiomatic isf IF b THEN t ELSE e FI = idiomatic (isf <*> (if b then t else e))
 
@@ -63,5 +63,5 @@ pNat :: Parser Int
 pNat = pNatural
 
 show_demos :: IO ()
-show_demos =  demo  "(iI (+) '(' pNat \"plus\" IF True THEN pNat ELSE pNat FI ')' Ii) ::Parser Int" "(2 plus 3)"  
-                    ((iI (+) '(' pNat  "plus"  IF True THEN pNat ELSE pNat FI ')' Ii) ::Parser Int)
+show_demos =  demo  "(+) <$> (iI (+) '(' pNat \"plus\" IF True THEN pNat ELSE pNat FI ')' Ii)  <* lexeme (pSym '+') <*>  pNat)" "(2 plus 3) + 8"  
+                    ((+) <$> (iI (+) '(' pNat  "plus"  IF True THEN pNat ELSE pNat FI ')' Ii) <* lexeme (pSym '+') <*>  pNat)
