@@ -100,18 +100,6 @@ infix   2  <?>
 infixl  3  <<|>     
 infixl  2 `opt`
 
-{-
--- | The function `splitState` playes a crucial role in splitting up the state. 
---   The `symbol` parameter tells us what kind of thing, and even which value of that kind, is expected from the input.
---   The @state@  and  and the @symbol@ type together determine what type of @token@ is to be returned. 
---   Since the function is overloaded we do not have to invent  all kind of different names for our elementary parsers.
---   This may be a bit confusing if you are not used to this. Error messages may be a bit harder to decipher.
---   The function takes as second parameter a continutation which is called with the 
---   recognised piece of input (the @token@) and the remaining input of type @state@.
-class  Provides state symbol token | state symbol -> token  where
-       splitState   ::  symbol -> (token -> state  -> Steps a) -> state -> Steps a
--}
-
 -- | The class `Eof` contains a function `eof` which is used to check whether we have reached the end of the input and `deletAtEnd` 
 --   should discard any unconsumed input at the end of a successful parse.
 class Eof state where
@@ -136,7 +124,6 @@ class state `StoresErrors`  error | state -> error where
   -- | `getErrors` retrieves the correcting steps made since the last time the function was called. The result can, 
   --    by using it in a monad, be used to control how to proceed with the parsing process.
   getErrors :: state -> ([error], state)
-
 
 class state `HasPosition`  pos | state -> pos where
   -- | `getPos` retrieves the correcting steps made since the last time the function was called. The result can, 
@@ -427,7 +414,7 @@ data  Steps   a  where
       Step   ::                 Progress       ->  Steps a                             -> Steps   a
       Apply  ::  forall a b.    (b -> a)       ->  Steps   b                           -> Steps   a
       Fail   ::                 Strings        ->  [Strings   ->  (Cost , Steps   a)]  -> Steps   a
-      Micro   ::                Int           ->  Steps a                             -> Steps   a
+      Micro   ::                Int            ->  Steps a                             -> Steps   a
       End_h  ::                 ([a] , [a]     ->  Steps r)    ->  Steps   (a,r)       -> Steps   (a, r)
       End_f  ::                 [Steps   a]    ->  Steps   a                           -> Steps   a
 

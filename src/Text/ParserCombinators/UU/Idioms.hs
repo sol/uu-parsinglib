@@ -21,6 +21,7 @@ data IF = IF
 data THEN = THEN
 data ELSE = ELSE
 data FI = FI
+data OR = OR
 
 
 data String' = String' {fromStr :: String}
@@ -36,8 +37,14 @@ class Idiomatic st f g  | g -> f st  where
     idiomatic :: P st f -> g
 instance  Idiomatic st x  (Ii -> P st x) where
     idiomatic ix Ii = ix
+{-
+instance Idiomatic st (a->a) g   => Idiomatic st g OR  where
+    idiomatic ix OR = (ix <|>) . idiomatic (pure id)
+-}
+
 instance  Idiomatic st f g  => Idiomatic  st (a -> f) (P  st a -> g) where
     idiomatic isf is = idiomatic (isf <*> is)
+
 
 
 instance Idiomatic st f g => Idiomatic st ((a -> b) -> f)  ((a -> b) -> g) where
@@ -50,6 +57,7 @@ instance  (Idiomatic (Str Char state loc) f g, IsLocationUpdatedBy loc Char, LL.
     idiomatic isf c = idiomatic (isf <* lexeme (pSym c))
 instance Idiomatic st f g =>    Idiomatic st (a -> f) (IF -> Bool -> THEN -> P st a -> ELSE -> P st a -> FI -> g) where
     idiomatic isf IF b THEN t ELSE e FI = idiomatic (isf <*> (if b then t else e))
+ 
 
 -- | The idea of the Idiom concept is that  sequential composition operators can be inferred from the type 
 --   of the various operands
