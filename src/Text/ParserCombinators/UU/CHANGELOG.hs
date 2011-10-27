@@ -1,5 +1,13 @@
 -- | This module just contains the CHANGELOG
 --
+-- Version 2.7.2
+--
+-- fixed a subtle bug in the merging parsers caused by name shielding ;-{{
+--
+-- Version 2.7.1.1
+--
+-- added @pDoubleStr@ to the export list of the Utils module
+--
 -- Version 2.7.1
 --
 -- fixed a subtle black hole which prevented computation of lengths!! You should upgrade.

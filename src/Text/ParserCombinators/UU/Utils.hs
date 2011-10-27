@@ -40,6 +40,7 @@ module Text.ParserCombinators.UU.Utils (
   pNaturalRaw,
   pIntegerRaw,
   pDoubleRaw,
+  pDoubleStr,
 
   -- * Lexeme parsers for numbers
   pNatural,

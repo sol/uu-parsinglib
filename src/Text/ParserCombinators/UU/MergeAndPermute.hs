@@ -6,6 +6,7 @@
 
 module Text.ParserCombinators.UU.MergeAndPermute where
 import Text.ParserCombinators.UU.Core
+import Debug.Trace
 
 infixl 4  <||>, <<||> 
 
@@ -28,10 +29,10 @@ instance (Show a) => Show (Gram f a) where
 --   Here we use the functions `getOneP` and `getZeroP` which are provided in the uu-parsinglib package,
 --   but they could easily be provided by other packages too.
 
-mkGram :: P t a -> Gram (P t) a
+mkGram :: Show a => P t a -> Gram (P t) a
 mkGram p =  case getOneP p of
-            Just p -> Gram [p `Seq` Gram  [] (Just id)] (getZeroP p)
-            Nothing -> Gram [] (getZeroP p)
+            Just q  -> Gram [q `Seq` Gram  [] (Just id)] (getZeroP p)
+            Nothing -> Gram []                           (getZeroP p)
 
 -- * Class instances for Gram
 -- | We define instances for the data type `Gram` for `Functor`, `Applicative`,  `Alternative` and `ExtAlternative`
@@ -101,8 +102,8 @@ pg@(Gram pl pe) <<||> ~qg@(Gram ql qe)
 -- | 'mkParserM' converts a `Gram`mar back into a parser, which can subsequenly be run.
 mkParserM :: (Monad f, Applicative f, ExtAlternative f) => Gram f a -> f a
 mkParserM (Gram ls le) = foldr (\ p pp -> doNotInterpret p <|> pp) (maybe empty pure le) (map mkParserAlt ls)
-   where mkParserAlt (p `Seq` pp) = p <**> mkParserM pp
-         mkParserAlt (fc `Bind` c2fa) = fc >>=  (mkParserM . c2fa)
+   where mkParserAlt (p   `Seq`  pp  ) = p <**> mkParserM pp
+         mkParserAlt (fc  `Bind` c2fa) = fc >>=  (mkParserM . c2fa)
  
 
 -- | `mkParserS` is like `mkParserM`, with the additional feature that we allow separators between the components. Only useful in the permuting case.
