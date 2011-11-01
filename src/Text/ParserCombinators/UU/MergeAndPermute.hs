@@ -29,7 +29,7 @@ instance (Show a) => Show (Gram f a) where
 --   Here we use the functions `getOneP` and `getZeroP` which are provided in the uu-parsinglib package,
 --   but they could easily be provided by other packages too.
 
-mkGram :: Show a => P t a -> Gram (P t) a
+mkGram ::  P t a -> Gram (P t) a
 mkGram p =  case getOneP p of
             Just q  -> Gram [q `Seq` Gram  [] (Just id)] (getZeroP p)
             Nothing -> Gram []                           (getZeroP p)
@@ -91,11 +91,11 @@ pg@(Gram pl pe) <||> qg@(Gram ql qe)
            ++ [ fc `Bind` (\c -> pg <||> c2fb c)   | fc `Bind` c2fb   <- ql]
           )   (pe <*> qe)                                         
 
--- |  The function `<<||>` is a special version of `<||>`, whch only starts a new instance of its right operand when the left operand cannot proceed.
---   This is used in the function 'pmMany', where we want to merge as many instances of its argument, but not more than that.
+-- |  The function `<<||>` is a special version of `<||>`, which only starts a new instance of its right operand when the left operand cannot proceed.
+--   This is used in the function 'pmMany', where we want to merge as many instances of its argument, but no more than that.
 (<<||>):: Functor f => Gram f (b->a) -> Gram f b -> Gram f a
 pg@(Gram pl pe) <<||> ~qg@(Gram ql qe)
-   = Gram (   [ p `Seq` (flip  <$> pp <||> qg)| p `Seq` pp <- pl]
+   = Gram (   [ p `Seq` (flip  <$> pp <||> qg)| p `Seq` pp <- pl] ++ [p `Bind` (\ a -> pp a <||> qg)| p `Bind` pp <- pl]
           )   (pe <*> qe)
 
 
@@ -116,9 +116,9 @@ mkParserS sep (Gram ls le) = foldr  (\ p pp -> doNotInterpret p <|> pp) (maybe e
              where mkParserAlt (p `Seq` pp) = sep *> p <**> mkParserP sep pp
                    mkParserAlt (fc `Bind` c2fa) = fc >>=  (mkParserP sep . c2fa)
 
--- | Run a sufficient number of  @p@'s in a merged fashion, but not more than necessary!!
+-- | Run a sufficient number of  @p@'s in a merged fashion, but no more than necessary!!
 pmMany :: Functor f => Gram f a -> Gram f [a]
-pmMany p = let pm = (:) <$> p <<||> pm <|> pure [] in pm
+pmMany p = let pm = ( (:) <$> p <<||> pm ) <|> pure [] in pm
 
 
 

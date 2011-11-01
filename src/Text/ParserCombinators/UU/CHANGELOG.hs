@@ -1,5 +1,13 @@
 -- | This module just contains the CHANGELOG
 --
+-- Version 2.7.2.2
+--
+-- fixed the case where the left hand operand of  <<||> strats with a monadic bind
+--
+-- Version 2.7.2.1
+--
+-- removed a left-over from debugging
+--
 -- Version 2.7.2
 --
 -- fixed a subtle bug in the merging parsers caused by name shielding ;-{{
