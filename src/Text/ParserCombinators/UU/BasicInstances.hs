@@ -7,7 +7,8 @@
               UndecidableInstances,
               NoMonomorphismRestriction,
               TypeSynonymInstances,
-              ScopedTypeVariables #-}
+              ScopedTypeVariables,
+              TypeOperators #-}
 
 -- | This module contains basic instances for the class interface described in the "Text.ParserCombinators.UU.Core" module.
 --   It demonstates how to construct and maintain a state during parsing. In the state we store error messages, 

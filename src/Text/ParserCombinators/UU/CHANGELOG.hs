@@ -1,5 +1,9 @@
 -- | This module just contains the CHANGELOG
 --
+-- Version 2.7.3.2
+--
+-- made TypeOperators explicit as required by GHC 7.4
+--
 -- Version 2.7.3.1
 --
 -- fixed corner case when combining to failing parsers during grammar analysis; probably useful error message is now gone
