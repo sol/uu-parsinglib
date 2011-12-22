@@ -1,8 +1,16 @@
 -- | This module just contains the CHANGELOG
 --
+-- Version 2.7.3.1
+--
+-- fixed corner case when combining to failing parsers during grammar analysis; probably useful error message is now gone
+--
+-- Version 2.7.3
+--
+-- better behaviour when inserting at end of input
+--
 -- Version 2.7.2.2
 --
--- fixed the case where the left hand operand of  <<||> strats with a monadic bind
+-- fixed the case where the left hand operand of  <<||> starts with a monadic bind
 --
 -- Version 2.7.2.1
 --

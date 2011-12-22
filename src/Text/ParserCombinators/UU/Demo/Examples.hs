@@ -121,6 +121,14 @@ run p inp = do  let r@(a, errors) =  parse ( (,) <$> p <*> pEnd) (createStr (Lin
                 putStrLn "-- "
              where show_errors :: (Show a) => [a] -> IO ()
                    show_errors = sequence_ . (map (putStrLn . show))
+run' p inp = do let r@(a, errors) =  parse ( (,) <$> p <*> pEnd) (createStr (LineColPos 0 0 0) inp)
+                if null errors then  return ()
+                      else  do putStr ("--  Correcting steps: \n")
+                               show_errors errors               
+                putStrLn ("--  Result: " ++ show a)                
+                putStrLn "-- "
+             where show_errors :: (Show a) => [a] -> IO ()
+                   show_errors = sequence_ . (map (putStrLn . show))
 
 -- | Our first two parsers are simple; one recognises a single 'a' character and the other one a single 'b'. Since we will use them later we 
 --   convert the recognised character into `String` so they can be easily combined.

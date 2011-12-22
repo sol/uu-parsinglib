@@ -185,9 +185,10 @@ getZeroP (P _ _ _ z)  =  z
 -- | `mkParser` combines the non-empty descriptor part and the empty descriptor part into a descriptor tupled with the parser triple
 mkParser :: Maybe (T st a) -> Maybe a -> Nat -> P st a
 mkParser np ne  l  =  P (mkParser'  np ne)  np l ne
-  where  mkParser' np@(Just nt)  ne@Nothing   =  nt               
-         mkParser' np@Nothing    ne@(Just a)  =  pure a       
-         mkParser' np@(Just nt)  ne@(Just a)  =  nt <|> pure a
+  where  mkParser' np@(Just nt)  ne@Nothing    =  nt               
+         mkParser' np@Nothing    ne@(Just a)   =  pure a       
+         mkParser' np@(Just nt)  ne@(Just a)   =  nt <|> pure a
+         mkParser' np@(Nothing)  ne@(Nothing)  =  empty
 
 -- ! `combine` creates the non-empty parser 
 combine :: (Alternative f) => Maybe t1 -> Maybe t2 -> t -> Maybe t3
@@ -217,14 +218,14 @@ instance Alternative (P   state) where
            Nothing `alt` q  = q
            p       `alt` Nothing = p
            Just p  `alt` Just q  = Just (p <|>q)
-       in  mkParser ((if b then  flip  else id) alt np nq) (pe <|> qe) rl
+       in  mkParser ((if b then  id  else flip) alt np nq) (pe <|> qe) rl
   empty  = mkParser empty empty  Infinite 
 
 instance ExtAlternative (P st) where
   P ap np pl pe <<|> P aq nq ql qe 
     = let (rl, b) = nat_min pl ql 0
           bestx :: Steps a -> Steps a -> Steps a
-          bestx = (if b then flip else id) best
+          bestx = (if b then id else flip) best
           choose:: T st a -> T st a -> T st a
           choose  (T ph pf pr)  (T qh qf qr) 
              = T  (\ k st -> let left  = norm (ph k st)
@@ -381,12 +382,12 @@ pSwitch split (P _ np pl pe)
 -- By default we use the future parser, since this gives us access to partal
 -- result; future parsers are expected to run in less space.
 parse :: (Eof t) => P t a -> t -> a
-parse   (P (T _  pf _) _ _ _)  = fst . eval . pf  (\ rest   -> if eof rest then         Step 0 (Step 0 (Step 0 (Step 0 (error "ambiguous parser?"))))  
+parse   (P (T _  pf _) _ _ _)  = fst . eval . pf  (\ rest   -> if eof rest then  Step 0 ( Step 0 (Step 0 (Step 0 (Step 0 (error "ambiguous parser?"))))) 
                                                                else error "pEnd missing?")
 -- | The function @`parse_h`@ behaves like @`parse`@ but using the history
 -- parser. This parser does not give online results, but might run faster.
 parse_h :: (Eof t) => P t a -> t -> a
-parse_h (P (T ph _  _) _ _ _)  = fst . eval . ph  (\ a rest -> if eof rest then push a (Step 0 (Step 0 (Step 0 (Step 0 (error "ambiguous parser?"))))) 
+parse_h (P (T ph _  _) _ _ _)  = fst . eval . ph  (\ a rest -> if eof rest then push a (Step 0 (Step 0 (Step 0 (Step 0 (Step 0 (error "ambiguous parser?"))))) )
                                                                            else error "pEnd missing?") 
 
 -- | The data type `Steps` is the core data type around which the parsers are constructed.
@@ -451,7 +452,7 @@ has_success _        = False
 eval :: Steps   a      ->  a
 eval (Step  n    l)     =   {- trace ("Step " ++ show n ++ "\n")-} (eval l)
 eval (Micro  _    l)    =   eval l
-eval (Fail   ss  ls  )  =   trace' ("expecting: " ++ show ss) (eval (getCheapest 3 (map ($ss) ls))) 
+eval (Fail   ss  ls  )  =   trace' ("expecting: " ++ show ss) (eval (getCheapest 5 (map ($ss) ls))) 
 eval (Apply  f   l   )  =   f (eval l)
 eval (End_f   _  _   )  =   error "dangling End_f constructor"
 eval (End_h   _  _   )  =   error "dangling End_h constructor"
@@ -513,9 +514,9 @@ getCheapest n l  =  snd $  foldr (\(w,ll) btf@(c, l)
 
 traverse :: Int -> Steps a -> Int -> Int  -> Int 
 traverse 0  _            v c  =  trace' ("traverse " ++ show' 0 v c ++ " choosing" ++ show v ++ "\n") v
-traverse n (Step _   l)  v c  =  trace' ("traverse Step   " ++ show' n v c ++ "\n") (traverse (n -  1 ) l (v-n) c)
-traverse n (Micro _  l)  v c  =  trace' ("traverse Micro  " ++ show' n v c ++ "\n") (traverse n         l v     c)
-traverse n (Apply _  l)  v c  =  {- trace' ("traverse Apply  " ++ show n ++ "\n")-} (traverse n         l v     c)
+traverse n (Step _   l)  v c  =  trace' ("traverse Step   " ++ show' n v c ++ "\n") (traverse (n -  1 ) l (v - n) c)
+traverse n (Micro x  l)  v c  =  trace' ("traverse Micro  " ++ show' n v c ++ "\n") (traverse n         l v c)
+traverse n (Apply _  l)  v c  =  trace' ("traverse Apply  " ++ show n ++ "\n")      (traverse n         l  v      c)
 traverse n (Fail m m2ls) v c  =  trace' ("traverse Fail   " ++ show m ++ show' n v c ++ "\n") 
                                  (foldr (\ (w,l) c' -> if v + w < c' then traverse (n -  1 ) l (v+w) c'
                                                        else c') c (map ($m) m2ls)

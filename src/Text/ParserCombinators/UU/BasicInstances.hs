@@ -143,13 +143,13 @@ pSatisfy :: forall loc state a .((Show a,  loc `IsLocationUpdatedBy` a, LL.ListL
 pSatisfy p  (Insertion msg  a cost) = pSymExt splitState (Succ (Zero Infinite)) Nothing
   where  splitState :: forall r. ((a ->  (Str  a state loc)  -> Steps r) ->  (Str  a state loc) -> Steps r)
          splitState  k (Str  tts   msgs pos  del_ok) 
-          = show_attempt ("Try Predicate: " ++ msg ++ "\n") (
+          = show_attempt ("Try Predicate: " ++ msg ++ " at position " ++ show pos ++ "\n") (
              let ins exp = (cost, k a (Str tts (msgs ++ [Inserted (show a)  pos  exp]) pos  False))
              in if   LL.null tts 
                 then Fail [msg] [ins]
                 else let t       = LL.head tts
                          ts      = LL.tail tts
-                         del exp = (5, splitState k (Str ts (msgs ++ [Deleted  (show t)  pos  exp]) (advance pos t) True ))
+                         del exp = (4, splitState k (Str ts (msgs ++ [Deleted  (show t)  pos  exp]) (advance pos t) True ))
                      in if p t
                         then  show_symbol ("Accepting symbol: " ++ show t ++ " at position: " ++ show pos ++"\n") 
                               (Step 1 (k t (Str ts msgs (advance pos t) True)))
@@ -175,7 +175,7 @@ pSymInsert  t  = pSatisfy (==t)
 pSym ::   (Eq a,Show a, IsLocationUpdatedBy loc a, LL.ListLike state a) => a ->  P (Str a state loc) a    
 pSym  t = pSymInsert t (Insertion (show t) t 5)
 
--- | `pMunchL` recognises the longest prefix of the input for which the passed predicate holds. The message parameer is used when tracing has been switched on. 
+-- | `pMunchL` recognises the longest prefix of the input for which the passed predicate holds. The message parameter is used when tracing has been switched on. 
 pMunchL :: forall loc state a .((Show a,  loc `IsLocationUpdatedBy` a, LL.ListLike state a) => (a -> Bool) -> String -> P (Str  a state loc) [a])
 pMunchL p msg = pSymExt splitState (Zero Infinite) Nothing
   where  splitState :: forall r. (([a] ->  (Str  a state loc)  -> Steps r) ->  (Str  a state loc) -> Steps r)
@@ -193,7 +193,7 @@ pMunchL p msg = pSymExt splitState (Zero Infinite) Nothing
 pMunch :: forall loc state a .((Show a,  loc `IsLocationUpdatedBy` a, LL.ListLike state a) => (a -> Bool)  -> P (Str  a state loc) [a])
 pMunch  p   = pMunchL p ""
 
--- | `pTokenCost` succeeds iis parameter is a prefix of the input. 
+-- | `pTokenCost` succeeds if its parameter is a prefix of the input. 
 pTokenCost :: forall loc state a .((Show a, Eq a,  loc `IsLocationUpdatedBy` a, LL.ListLike state a) => [a] -> Int -> P (Str  a state loc) [a])
 pTokenCost as cost = 
   if null as then error "Module: BasicInstances, function: pTokenCost; call  with empty token"
@@ -227,7 +227,7 @@ pToken     as   =   pTokenCost as 5
 {-# INLINE show_tokens #-}
 
 show_tokens :: String -> b -> b
-show_tokens m v =   {- trace m -}  v
+show_tokens m v =  {-  trace m -}   v
 
 {-# INLINE show_munch #-}
 show_munch :: String -> b -> b
@@ -235,7 +235,7 @@ show_munch  m v =   {- trace m -}  v
 
 {-# INLINE show_symbol #-}
 show_symbol :: String -> b -> b
-show_symbol m v = {-  trace m -}  v
+show_symbol m v =   {- trace m -}  v
 
 {-# INLINE show_attempt #-}
-show_attempt m v = {- trace m -} v
+show_attempt m v =  {- trace m -}  v
