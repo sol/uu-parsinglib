@@ -1,5 +1,5 @@
 Name:                uu-parsinglib
-Version:             2.7.3.2
+Version:             2.7.3.3
 Build-Type:          Simple
 License:             MIT
 Copyright:           S Doaitse Swierstra 
@@ -28,7 +28,7 @@ Description:         New version of the Utrecht University parser combinator lib
                      The file "Text.ParserCombinators.UU.README" contains some references to background information.
                      .
                      We maintain a low frequency mailing for discussing the package. You can subscribe at:  <https://mail.cs.uu.nl/mailman/listinfo/parsing>
-Category:            Parsing, Text,
+Category:            Parsing, Text
 
 Library
   hs-source-dirs:    src

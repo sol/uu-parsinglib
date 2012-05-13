@@ -124,7 +124,7 @@ pAnySym = pAny pSym
 
 -- * Dealing with Whitespace
 pSpaces :: Parser String
-pSpaces = pList $ pAnySym " \r\n\t" <?> "Whitespace"
+pSpaces = pMunch (`elem` " \r\n\t") <?> "Whitespace"
 
 -- | Lexeme Parsers skip trailing whitespace (this terminology comes from Parsec)
 lexeme :: ParserTrafo a a
