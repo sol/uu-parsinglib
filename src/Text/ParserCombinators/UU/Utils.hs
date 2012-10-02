@@ -262,6 +262,7 @@ pParentheticalString d = lexeme $ pSym d *> pList pNonQuoteVChar <* pSym d
 pQuotedString :: Parser String
 pQuotedString = pParentheticalString '"'
 
+
 -- * Read-compatability
 
 -- | Converts a UU Parser into a read-style one.
@@ -270,6 +271,7 @@ pQuotedString = pParentheticalString '"'
 -- parsers to UU-based ones.
 parserReadsPrec :: Parser a -> Int -> ReadS a
 parserReadsPrec p _ s = [parse ((,) <$> p <*> pMunch (const True)) . createStr (0::Int) $ s]
+
 
 
 -- * Running parsers straightforwardly
@@ -307,3 +309,4 @@ runParser inputName p s | (a,b) <- execParser p s =
                                 aboveString = replicate 30 ' ' ++ "v"
                                 belowString = replicate 30 ' ' ++ "^"
                                 inputFrag   = replicate (30 - c) ' ' ++ (take 71 $ drop (c - 30) s')
+

@@ -237,6 +237,6 @@ show_munch  m v =   {- trace m -}  v
 {-# INLINE show_symbol #-}
 show_symbol :: String -> b -> b
 show_symbol m v =   {- trace m -}  v
-
+-- show_symbol m v =     trace m   v
 {-# INLINE show_attempt #-}
 show_attempt m v =  {- trace m -}  v

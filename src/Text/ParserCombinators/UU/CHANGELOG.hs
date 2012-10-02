@@ -1,5 +1,12 @@
 -- | This module just contains the CHANGELOG
 --
+-- export of constructors of LineCol and LineColPos exported
+--
+-- Version 2.7.3.3
+--
+-- cured a problem with loosing priority information when applying semantic actions, final cure is probably to intrduce a real priority mechanism
+-- replace pSpaces with more efficient version using pMunch
+--
 -- Version 2.7.3.2
 --
 -- made TypeOperators explicit as required by GHC 7.4
