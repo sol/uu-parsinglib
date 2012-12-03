@@ -1,5 +1,5 @@
 Name:                uu-parsinglib
-Version:             2.7.3.4
+Version:             2.7.4
 Build-Type:          Simple
 License:             MIT
 Copyright:           S Doaitse Swierstra 
@@ -10,7 +10,6 @@ Stability:           stable, but evolving
 Homepage:            http://www.cs.uu.nl/wiki/bin/view/HUT/ParserCombinators
 Bug-reports:         mailto:doaitse@swierstra.net      
 Synopsis:            Fast, online, error-correcting, monadic, applicative, merging, permuting, idiomatic parser combinators.
-Cabal-Version:       >=1.4
 Description:         New version of the Utrecht University parser combinator library, which  provides online, error correction, 
                      annotation free, applicative style parser combinators. In addition to this we do  provide a monadic and idomatic interface.
                      Parsers do analyse themselves to avoid commonly made errors. A recent addition was the combinator @`<||>`@ and 
@@ -29,6 +28,12 @@ Description:         New version of the Utrecht University parser combinator lib
                      .
                      We maintain a low frequency mailing for discussing the package. You can subscribe at:  <https://mail.cs.uu.nl/mailman/listinfo/parsing>
 Category:            Parsing, Text
+
+cabal-version:       >= 1.6
+
+source-repository head
+     type: svn
+     location: https://svn.science.uu.nl/repos/project.STEC.uu-parsinglib/trunk
 
 Library
   hs-source-dirs:    src

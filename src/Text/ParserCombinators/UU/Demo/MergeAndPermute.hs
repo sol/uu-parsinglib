@@ -46,7 +46,7 @@ type Grammar a =  Gram (P (Str Char String  LineColPos)) a
 -- 
 -- The 'a' at the right hand side can b any of the three 'a'-s in the input:
 --
--- >>>   run ((,)    <$> pAtLeast 3 pA <||> pAtMost 3 pB)                              "aabbbb"
+-- >>>   run ((,)    <$> pAtLeast 3 pA <||> pAtMost 3 pB)                              "ababbb"
 --  Result: (["a","a","a"],["b","b","b"])
 --  Correcting steps: 
 --    Deleted   'b' at position LineColPos 0 5 5 expecting 'a'
@@ -82,15 +82,15 @@ type Grammar a =  Gram (P (Str Char String  LineColPos)) a
 --  Result: (["a","a"],["b","b"])
 -- 
 
-run_demos :: IO ()
-run_demos =  do DEMOG (((,,) <$> two pA <||> three pB <||> pBetween 2 4 pC ), "cababbcccc")
+show_demos :: IO ()
+show_demos = do DEMOG (((,,) <$> two pA <||> three pB <||> pBetween 2 4 pC ), "cababbcccc")
                 DEMO  ((amb (mkParserM ((,) <$> pmMany ((,) <$>  pA <*> pC) <||> pmMany pB)))  , "aabbcaabbccc")
                 DEMOG ((pmMany(pABC))                                                          , "a2a1b1b2c2a3b3c1c3")
                 DEMOG (((,)    <$> pBetween 2 3 pA <||> pBetween 1 2 pB)                       , "abba")  
                 DEMOG (((,)    <$> pBetween 2 3 pA <||> pBetween 1 2 pB)                       , "bba")
                 DEMO ((amb (mkParserM( ((,)    <$> pBetween 2 3 pA <||> pBetween 1 2 pA))))    , "aaa")
                 putStr "-- The 'a' at the right hand side can b any of the three 'a'-s in the input\n"
-                DEMOG (((,)    <$> pAtLeast 3 pA <||> pAtMost 3 pB)                            , "aabbbb")  
+                DEMOG (((,)    <$> pAtLeast 3 pA <||> pAtMost 3 pB)                            , "ababbb")  
                 DEMOG (((,)    <$> pSome pA <||> pMany pB)                                     , "abba")       
                 DEMOG (((,)    <$> pSome pA <||> pMany pB)                                     , "abba")           
                 DEMOG (((,)    <$> pSome pA <||> pMany pB)                                     , "")         

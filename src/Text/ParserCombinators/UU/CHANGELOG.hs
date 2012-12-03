@@ -2,6 +2,10 @@
 --
 -- export of constructors of LineCol and LineColPos exported
 --
+-- Version 2.7.4
+--
+-- Made some abstrcat interpretation a bit simpler, and made comparing lengths less trict. Some times the abstrcat interpretation would <<loop>>
+--
 -- Version 2.7.3.3
 --
 -- cured a problem with loosing priority information when applying semantic actions, final cure is probably to intrduce a real priority mechanism

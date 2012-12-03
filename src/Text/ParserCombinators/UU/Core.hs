@@ -215,7 +215,9 @@ instance   Applicative (P  state) where
 
 instance Alternative (P   state) where 
   P ap np  pe pl <|> P aq nq qe ql 
-    =  let (rl, b) = trace' "calling natMin from <|>" (nat_min pl ql 0)
+    =  let pl' = maybe pl (const (Zero pl)) pe
+           ql' = maybe ql (const (Zero ql)) qe
+           (rl, b) = trace' "calling natMin from <|>" (nat_min pl' ql' 0)
            Nothing `alt` q  = q
            p       `alt` Nothing = p
            Just p  `alt` Just q  = Just (p <|>q)
@@ -305,7 +307,7 @@ P _  np  pe pl `micro` i
     in mkParser nnp pe pl
 
 -- |  For the precise functioning of the `amb` combinators see the paper cited in the "Text.ParserCombinators.UU.README";
---    it converts an ambiguous parser into a parser which returns a list of possible recognitions,
+--    it converts an ambiguous parser into a parser which returns a list of all possible recognitions,
 amb :: P st a -> P st [a]
 amb (P _  np  pe pl) 
  = let  combinevalues  :: Steps [(a,r)] -> Steps ([a],r)
@@ -606,15 +608,10 @@ nat_min  Unspecified  r           _  = (r          , False)
 nat_add :: Nat -> Nat -> Nat
 nat_add (Zero _)        r           = trace' "Zero in add\n"        r
 nat_add (Succ l)        r           = trace' "Succ in add\n"        (Succ (nat_add l r))
-nat_add l               (Zero _)    = trace' "Zero in right operand of add" l
-nat_add l               (Succ r)    = trace' "Succ in right operand of add" (Succ (nat_add l r))
 nat_add Infinite        _           = trace' "Infinite in add\n"    Infinite
-nat_add l               Infinite    = trace' "Infinite in add\n"    Infinite
 nat_add Hole            _           = Hole
-nat_add _               Hole        = Hole
-nat_add Unspecified     Unspecified = Unspecified
-nat_add Unspecified     r           = trace' "Unspecified in add\n" (nat_add r Unspecified)
-
+nat_add Unspecified     r           = trace' "Unspecified in add\n" Unspecified
+ 
 
 
 trace' :: String -> b -> b
